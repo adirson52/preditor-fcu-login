@@ -72,8 +72,9 @@
           <label class="fcu-auth-field">Nome completo
             <input name="full_name" type="text" autocomplete="name" minlength="2" maxlength="150" required>
           </label>
-          <label class="fcu-auth-field">E-mail
-            <input name="email" type="email" autocomplete="email" required>
+          <label class="fcu-auth-field">E-mail válido
+            <input name="email" type="email" autocomplete="email" placeholder="voce@exemplo.com" required>
+            <small>Você receberá neste endereço o link para confirmar seu cadastro.</small>
           </label>
           <label class="fcu-auth-field">Instituição
             <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ou Independente / sem vínculo" required>

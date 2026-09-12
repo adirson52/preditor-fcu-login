@@ -6,6 +6,7 @@ test('exibe cadastro com os aceites obrigatórios', async ({ page }) => {
   await expect(page.locator('#fcu-auth-backdrop')).toHaveClass(/is-open/);
   await expect(page.locator('#fcu-register-form input[name="full_name"]')).toBeVisible();
   await expect(page.locator('#fcu-register-form input[name="email"]')).toBeVisible();
+  await expect(page.locator('#fcu-register-form')).toContainText('Você receberá neste endereço o link para confirmar seu cadastro.');
   await expect(page.locator('#fcu-register-form input[name="institution"]')).toBeVisible();
   await expect(page.locator('#fcu-register-form input[name="terms"]')).not.toBeChecked();
   await expect(page.locator('#fcu-register-form input[name="privacy"]')).not.toBeChecked();

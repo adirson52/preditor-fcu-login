@@ -86,6 +86,14 @@
 .fcu-auth-tab.is-active { border-color: var(--auth-teal); background: #e9f6f9; color: #006c88; }
 .fcu-auth-view[hidden] { display: none !important; }
 .fcu-auth-field { display: block; margin: 0 0 13px; font-weight: 700; }
+.fcu-auth-field small {
+  display: block;
+  margin-top: 5px;
+  color: #52616f;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
 .fcu-auth-field input {
   display: block;
   width: 100%;
