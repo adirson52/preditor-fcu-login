@@ -1,0 +1,21 @@
+{
+  "scenario": "final",
+  "prefix_len": 8,
+  "format": "json.gz",
+  "record": [
+    "id",
+    "area",
+    "tile_x",
+    "tile_y",
+    "probability",
+    "rank",
+    "target",
+    "municipio",
+    "lat",
+    "lng"
+  ],
+  "shard_count": 110,
+  "point_count": 3774138,
+  "tile_count": 841,
+  "created_at": "2026-08-27T21:46:19"
+}

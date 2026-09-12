@@ -1,0 +1,110 @@
+{
+  "mode": "prioridade_modelo_por_subcamada",
+  "source": "E:\\Banco de dados Preditor Br\\03_preditor_grade31_teste0407\\03_outputs\\05_dashboard_b_salvador_fcu_tipos_online\\data_tiles\\final\\points\\12",
+  "field": "ranking_total",
+  "classes_rendered": [
+    "priority",
+    "attention"
+  ],
+  "classes_transparent": [
+    "other"
+  ],
+  "colors": {
+    "priority": [
+      215,
+      25,
+      28
+    ],
+    "attention": [
+      242,
+      142,
+      43
+    ]
+  },
+  "zooms": {
+    "6": {
+      "priority": {
+        "tiles": 13,
+        "points": 11598
+      },
+      "attention": {
+        "tiles": 12,
+        "points": 3517
+      },
+      "other": {
+        "tiles": 0,
+        "points": 103470
+      }
+    },
+    "7": {
+      "priority": {
+        "tiles": 19,
+        "points": 23126
+      },
+      "attention": {
+        "tiles": 17,
+        "points": 7005
+      },
+      "other": {
+        "tiles": 0,
+        "points": 206801
+      }
+    },
+    "8": {
+      "priority": {
+        "tiles": 32,
+        "points": 45918
+      },
+      "attention": {
+        "tiles": 32,
+        "points": 13837
+      },
+      "other": {
+        "tiles": 0,
+        "points": 412283
+      }
+    },
+    "9": {
+      "priority": {
+        "tiles": 61,
+        "points": 92010
+      },
+      "attention": {
+        "tiles": 58,
+        "points": 27672
+      },
+      "other": {
+        "tiles": 0,
+        "points": 823485
+      }
+    },
+    "10": {
+      "priority": {
+        "tiles": 132,
+        "points": 183854
+      },
+      "attention": {
+        "tiles": 127,
+        "points": 55569
+      },
+      "other": {
+        "tiles": 0,
+        "points": 1647212
+      }
+    },
+    "11": {
+      "priority": {
+        "tiles": 256,
+        "points": 367581
+      },
+      "attention": {
+        "tiles": 253,
+        "points": 110741
+      },
+      "other": {
+        "tiles": 0,
+        "points": 3295816
+      }
+    }
+  }
+}

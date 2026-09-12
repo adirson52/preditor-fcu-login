@@ -1,0 +1,186 @@
+{
+  "mode": "ranking_qml_por_classe",
+  "source": "E:\\Banco de dados Preditor Br\\03_preditor_grade31_teste0407\\03_outputs\\05_dashboard_b_salvador_fcu_tipos_online\\data_tiles\\final\\points\\12",
+  "field": "ranking_total",
+  "classes": [
+    "priority",
+    "attention",
+    "other"
+  ],
+  "qml_min": 1,
+  "qml_ranges_by_area": {
+    "area_arranjo_pop_rj": {
+      "min": 1,
+      "max": 101166,
+      "classes": 50
+    },
+    "area_conc_urb_curitiba": {
+      "min": 1,
+      "max": 363467,
+      "classes": 50
+    },
+    "area_conc_urb_fortaleza": {
+      "min": 1,
+      "max": 257306,
+      "classes": 50
+    },
+    "area_conc_urb_goiania": {
+      "min": 1,
+      "max": 306292,
+      "classes": 50
+    },
+    "area_conc_urb_rio_de_janeiro": {
+      "min": 1,
+      "max": 799668,
+      "classes": 50
+    },
+    "area_conc_urb_salvador": {
+      "min": 1,
+      "max": 225164,
+      "classes": 50
+    },
+    "area_conc_urb_sao_paulo": {
+      "min": 1,
+      "max": 1015035,
+      "classes": 50
+    },
+    "area_medias_conc_urb_rj": {
+      "min": 1,
+      "max": 364678,
+      "classes": 50
+    },
+    "area_rgint_belem": {
+      "min": 1,
+      "max": 206709,
+      "classes": 50
+    },
+    "area_rgint_macapa": {
+      "min": 1,
+      "max": 60100,
+      "classes": 50
+    },
+    "area_rgint_redencao": {
+      "min": 1,
+      "max": 74553,
+      "classes": 50
+    }
+  },
+  "palette_size": 50,
+  "rendering": {
+    "marker_radius_by_zoom": {
+      "6": 0,
+      "7": 0,
+      "8": 0,
+      "9": 0,
+      "10": 0,
+      "11": 0
+    },
+    "marker_shape": "single_pixel",
+    "opacity_factor_by_zoom": {
+      "6": 0.42,
+      "7": 0.48,
+      "8": 0.56,
+      "9": 0.65,
+      "10": 0.78,
+      "11": 0.92
+    },
+    "sample_divisor_by_zoom": {
+      "6": 32,
+      "7": 16,
+      "8": 8,
+      "9": 4,
+      "10": 2,
+      "11": 1
+    },
+    "qml_alpha": {
+      "all_50_colors": 255
+    },
+    "action_alpha": 225
+  },
+  "zooms": {
+    "6": {
+      "priority": {
+        "tiles": 13,
+        "points": 11598
+      },
+      "attention": {
+        "tiles": 12,
+        "points": 3517
+      },
+      "other": {
+        "tiles": 13,
+        "points": 103470
+      }
+    },
+    "7": {
+      "priority": {
+        "tiles": 19,
+        "points": 23126
+      },
+      "attention": {
+        "tiles": 17,
+        "points": 7005
+      },
+      "other": {
+        "tiles": 20,
+        "points": 206801
+      }
+    },
+    "8": {
+      "priority": {
+        "tiles": 32,
+        "points": 45918
+      },
+      "attention": {
+        "tiles": 32,
+        "points": 13837
+      },
+      "other": {
+        "tiles": 38,
+        "points": 412283
+      }
+    },
+    "9": {
+      "priority": {
+        "tiles": 61,
+        "points": 92010
+      },
+      "attention": {
+        "tiles": 58,
+        "points": 27672
+      },
+      "other": {
+        "tiles": 72,
+        "points": 823485
+      }
+    },
+    "10": {
+      "priority": {
+        "tiles": 132,
+        "points": 183854
+      },
+      "attention": {
+        "tiles": 127,
+        "points": 55569
+      },
+      "other": {
+        "tiles": 160,
+        "points": 1647212
+      }
+    },
+    "11": {
+      "priority": {
+        "tiles": 256,
+        "points": 367581
+      },
+      "attention": {
+        "tiles": 253,
+        "points": 110741
+      },
+      "other": {
+        "tiles": 341,
+        "points": 3295816
+      }
+    }
+  }
+}

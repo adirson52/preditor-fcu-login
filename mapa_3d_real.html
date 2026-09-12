@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redirecionando para o mapa 3D</title>
+  <script>
+    const target = new URL('3d.html', window.location.href);
+    target.search = window.location.search;
+    target.hash = window.location.hash;
+    window.location.replace(target.href);
+  </script>
+</head>
+<body>
+  <p><a id="continue" href="3d.html">Abrir o mapa 3D</a></p>
+  <script>
+    document.getElementById('continue').href = '3d.html' + window.location.search + window.location.hash;
+  </script>
+</body>
+</html>

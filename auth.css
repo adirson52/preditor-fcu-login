@@ -1,0 +1,159 @@
+:root {
+  --auth-ink: #07324d;
+  --auth-teal: #087d99;
+  --auth-line: #cfdee5;
+  --auth-muted: #617989;
+}
+
+.fcu-auth-button {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 10950;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 999px;
+  background: var(--auth-ink);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(7, 50, 77, .22);
+  font: 750 13px/1 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.fcu-auth-button:hover { background: #0a4969; }
+.fcu-auth-button:focus-visible,
+.fcu-auth-modal button:focus-visible,
+.fcu-auth-modal input:focus-visible {
+  outline: 3px solid rgba(8, 125, 153, .28);
+  outline-offset: 2px;
+}
+
+.fcu-auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 24, 38, .58);
+  backdrop-filter: blur(5px);
+}
+
+.fcu-auth-backdrop.is-open { display: grid; }
+
+.fcu-auth-modal {
+  position: relative;
+  width: min(510px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  padding: 30px;
+  border: 1px solid var(--auth-line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--auth-ink);
+  box-shadow: 0 28px 80px rgba(3, 35, 53, .28);
+  font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.fcu-auth-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: #edf4f7;
+  color: var(--auth-ink);
+  font-size: 23px;
+  cursor: pointer;
+}
+
+.fcu-auth-modal h2 { margin: 0 42px 7px 0; font-size: 26px; }
+.fcu-auth-lead { margin: 0 0 20px; color: var(--auth-muted); }
+.fcu-auth-tabs { display: flex; gap: 7px; margin-bottom: 18px; }
+.fcu-auth-tab {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--auth-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--auth-ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+.fcu-auth-tab.is-active { border-color: var(--auth-teal); background: #e9f6f9; color: #006c88; }
+.fcu-auth-view[hidden] { display: none !important; }
+.fcu-auth-field { display: block; margin: 0 0 13px; font-weight: 700; }
+.fcu-auth-field input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--auth-line);
+  border-radius: 10px;
+  background: #fff;
+  color: #17384b;
+  font: inherit;
+}
+.fcu-auth-password { position: relative; }
+.fcu-auth-password input { padding-right: 72px; }
+.fcu-auth-password button {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--auth-teal);
+  font-weight: 750;
+  cursor: pointer;
+}
+.fcu-auth-check { display: flex; gap: 9px; align-items: flex-start; margin: 12px 0; color: #405d6d; }
+.fcu-auth-check input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.fcu-auth-check a { color: var(--auth-teal); }
+.fcu-auth-submit {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--auth-teal);
+  color: #fff;
+  font: 800 14px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+.fcu-auth-submit:disabled { cursor: wait; opacity: .62; }
+.fcu-auth-link {
+  display: block;
+  margin: 14px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--auth-teal);
+  font: 750 13px/1.4 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+.fcu-auth-message { min-height: 21px; margin: 12px 0 0; color: #315568; font-weight: 650; }
+.fcu-auth-message.is-error { color: #a22b2b; }
+.fcu-auth-demo-note {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 11000;
+  width: min(390px, calc(100vw - 36px));
+  padding: 13px 42px 13px 15px;
+  border: 1px solid #b9dbe4;
+  border-radius: 12px;
+  background: #f2fbfd;
+  color: var(--auth-ink);
+  box-shadow: 0 12px 34px rgba(7, 50, 77, .18);
+  font: 650 13px/1.45 Inter, system-ui, sans-serif;
+}
+.fcu-auth-demo-note button { position:absolute; top:7px; right:8px; border:0; background:transparent; font-size:20px; cursor:pointer; }
+
+@media (max-width: 700px) {
+  .fcu-auth-button { top: 7px; right: 8px; min-height: 38px; padding: 0 12px; }
+  .fcu-auth-modal { padding: 24px 19px; border-radius: 16px; }
+}

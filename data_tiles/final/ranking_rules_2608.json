@@ -1,0 +1,554 @@
+{
+  "version": 2,
+  "method": "escada_fcu_ranking_geral",
+  "formula": {
+    "priority_limit": "n_fcu + ceil(expansion_count / 2)",
+    "attention_limit": "n_fcu + expansion_count",
+    "classification": "ranking_total de todas as celulas"
+  },
+  "steps": [
+    {
+      "fcu_max": 0.1,
+      "expansion": "igual_ao_percentual_fcu"
+    },
+    {
+      "fcu_min_exclusive": 0.1,
+      "fcu_max": 0.125,
+      "expansion": 0.1
+    },
+    {
+      "fcu_min_exclusive": 0.125,
+      "fcu_max": 0.15,
+      "expansion": 0.11
+    },
+    {
+      "fcu_min_exclusive": 0.15,
+      "fcu_max": 0.175,
+      "expansion": 0.12
+    },
+    {
+      "fcu_min_exclusive": 0.175,
+      "fcu_max": 0.2,
+      "expansion": 0.13
+    },
+    {
+      "fcu_min_exclusive": 0.2,
+      "fcu_max": 0.225,
+      "expansion": 0.14
+    },
+    {
+      "fcu_min_exclusive": 0.225,
+      "expansion": 0.15
+    }
+  ],
+  "rules": {
+    "area_arranjo_pop_rj": {
+      "total": 101166,
+      "n_fcu": 3675,
+      "p_fcu": 0.036326,
+      "expansion_pct": 0.036326,
+      "expansion_count": 3675,
+      "priority_extra": 1838,
+      "priority_limit": 5513,
+      "attention_count": 1837,
+      "attention_limit": 7350,
+      "other_count": 93816,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_curitiba": {
+      "total": 363467,
+      "n_fcu": 15579,
+      "p_fcu": 0.042862,
+      "expansion_pct": 0.042862,
+      "expansion_count": 15579,
+      "priority_extra": 7790,
+      "priority_limit": 23369,
+      "attention_count": 7789,
+      "attention_limit": 31158,
+      "other_count": 332309,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_fortaleza": {
+      "total": 257306,
+      "n_fcu": 17625,
+      "p_fcu": 0.068498,
+      "expansion_pct": 0.068498,
+      "expansion_count": 17625,
+      "priority_extra": 8813,
+      "priority_limit": 26438,
+      "attention_count": 8812,
+      "attention_limit": 35250,
+      "other_count": 222056,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_goiania": {
+      "total": 306292,
+      "n_fcu": 3441,
+      "p_fcu": 0.011234,
+      "expansion_pct": 0.011234,
+      "expansion_count": 3441,
+      "priority_extra": 1721,
+      "priority_limit": 5162,
+      "attention_count": 1720,
+      "attention_limit": 6882,
+      "other_count": 299410,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_rio_de_janeiro": {
+      "total": 799668,
+      "n_fcu": 44227,
+      "p_fcu": 0.055307,
+      "expansion_pct": 0.055307,
+      "expansion_count": 44227,
+      "priority_extra": 22114,
+      "priority_limit": 66341,
+      "attention_count": 22113,
+      "attention_limit": 88454,
+      "other_count": 711214,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_salvador": {
+      "total": 225164,
+      "n_fcu": 33838,
+      "p_fcu": 0.150282,
+      "expansion_pct": 0.12,
+      "expansion_count": 27020,
+      "priority_extra": 13510,
+      "priority_limit": 47348,
+      "attention_count": 13510,
+      "attention_limit": 60858,
+      "other_count": 164306,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_conc_urb_sao_paulo": {
+      "total": 1015035,
+      "n_fcu": 51022,
+      "p_fcu": 0.050266,
+      "expansion_pct": 0.050266,
+      "expansion_count": 51022,
+      "priority_extra": 25511,
+      "priority_limit": 76533,
+      "attention_count": 25511,
+      "attention_limit": 102044,
+      "other_count": 912991,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_medias_conc_urb_rj": {
+      "total": 364678,
+      "n_fcu": 19395,
+      "p_fcu": 0.053184,
+      "expansion_pct": 0.053184,
+      "expansion_count": 19395,
+      "priority_extra": 9698,
+      "priority_limit": 29093,
+      "attention_count": 9697,
+      "attention_limit": 38790,
+      "other_count": 325888,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_rgint_belem": {
+      "total": 206709,
+      "n_fcu": 57673,
+      "p_fcu": 0.279006,
+      "expansion_pct": 0.15,
+      "expansion_count": 31006,
+      "priority_extra": 15503,
+      "priority_limit": 73176,
+      "attention_count": 15503,
+      "attention_limit": 88679,
+      "other_count": 118030,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_rgint_macapa": {
+      "total": 60100,
+      "n_fcu": 8468,
+      "p_fcu": 0.140899,
+      "expansion_pct": 0.11,
+      "expansion_count": 6611,
+      "priority_extra": 3306,
+      "priority_limit": 11774,
+      "attention_count": 3305,
+      "attention_limit": 15079,
+      "other_count": 45021,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    },
+    "area_rgint_redencao": {
+      "total": 74553,
+      "n_fcu": 1889,
+      "p_fcu": 0.025338,
+      "expansion_pct": 0.025338,
+      "expansion_count": 1889,
+      "priority_extra": 945,
+      "priority_limit": 2834,
+      "attention_count": 944,
+      "attention_limit": 3778,
+      "other_count": 70775,
+      "ranking_universe": "todas_as_celulas_da_area",
+      "ranking_field": "ranking_total"
+    }
+  },
+  "thresholds": {
+    "area_arranjo_pop_rj": {
+      "completo": {
+        "high_min": 0.060463,
+        "high_last_id": "200ME60532N88262_B_C",
+        "medium_min": 0.054383,
+        "medium_last_id": "200ME61982N87610_C_A",
+        "high_count": 5513,
+        "medium_count": 1837,
+        "low_count": 93816,
+        "n": 101166
+      },
+      "morfologico": {
+        "high_min": 0.097622,
+        "high_last_id": "200ME61702N88730_D_C",
+        "medium_min": 0.088054,
+        "medium_last_id": "200ME62086N87746_B_C",
+        "high_count": 5513,
+        "medium_count": 1837,
+        "low_count": 93816,
+        "n": 101166
+      },
+      "nao_morfologico": {
+        "high_min": 0.096522,
+        "high_last_id": "200ME61984N87618_B_A",
+        "medium_min": 0.089272,
+        "medium_last_id": "200ME62758N89508_D_D",
+        "high_count": 5513,
+        "medium_count": 1837,
+        "low_count": 93816,
+        "n": 101166
+      }
+    },
+    "area_conc_urb_curitiba": {
+      "completo": {
+        "high_min": 0.098519,
+        "high_last_id": "200ME54916N85056_C_B",
+        "medium_min": 0.08406,
+        "medium_last_id": "200ME54918N84910_A_C",
+        "high_count": 23369,
+        "medium_count": 7789,
+        "low_count": 332309,
+        "n": 363467
+      },
+      "morfologico": {
+        "high_min": 0.154213,
+        "high_last_id": "200ME54826N84814_B_B",
+        "medium_min": 0.127273,
+        "medium_last_id": "200ME54700N85070_D_A",
+        "high_count": 23369,
+        "medium_count": 7789,
+        "low_count": 332309,
+        "n": 363467
+      },
+      "nao_morfologico": {
+        "high_min": 0.110549,
+        "high_last_id": "200ME54866N85128_D_A",
+        "medium_min": 0.090902,
+        "medium_last_id": "200ME54914N84858_D_B",
+        "high_count": 23369,
+        "medium_count": 7789,
+        "low_count": 332309,
+        "n": 363467
+      }
+    },
+    "area_conc_urb_fortaleza": {
+      "completo": {
+        "high_min": 0.219678,
+        "high_last_id": "200ME66984N108770_D_A",
+        "medium_min": 0.147266,
+        "medium_last_id": "200ME66976N108580_B_A",
+        "high_count": 26438,
+        "medium_count": 8812,
+        "low_count": 222056,
+        "n": 257306
+      },
+      "morfologico": {
+        "high_min": 0.183478,
+        "high_last_id": "200ME66984N108746_B_C",
+        "medium_min": 0.146592,
+        "medium_last_id": "200ME67010N108712_D_D",
+        "high_count": 26438,
+        "medium_count": 8812,
+        "low_count": 222056,
+        "n": 257306
+      },
+      "nao_morfologico": {
+        "high_min": 0.21811,
+        "high_last_id": "200ME66922N108624_C_C",
+        "medium_min": 0.154065,
+        "medium_last_id": "200ME66920N108602_D_C",
+        "high_count": 26438,
+        "medium_count": 8812,
+        "low_count": 222056,
+        "n": 257306
+      }
+    },
+    "area_conc_urb_goiania": {
+      "completo": {
+        "high_min": 0.039226,
+        "high_last_id": "200ME54882N94530_A_C",
+        "medium_min": 0.034517,
+        "medium_last_id": "200ME54852N94632_D_A",
+        "high_count": 5162,
+        "medium_count": 1720,
+        "low_count": 299410,
+        "n": 306292
+      },
+      "morfologico": {
+        "high_min": 0.077447,
+        "high_last_id": "200ME54996N94476_D_B",
+        "medium_min": 0.064628,
+        "medium_last_id": "200ME55042N95032_C_D",
+        "high_count": 5162,
+        "medium_count": 1720,
+        "low_count": 299410,
+        "n": 306292
+      },
+      "nao_morfologico": {
+        "high_min": 0.023701,
+        "high_last_id": "200ME54952N94800_B_C",
+        "medium_min": 0.021147,
+        "medium_last_id": "200ME54962N94832_D_B",
+        "high_count": 5162,
+        "medium_count": 1720,
+        "low_count": 299410,
+        "n": 306292
+      }
+    },
+    "area_conc_urb_rio_de_janeiro": {
+      "completo": {
+        "high_min": 0.161202,
+        "high_last_id": "200ME60598N87582_C_D",
+        "medium_min": 0.121854,
+        "medium_last_id": "200ME60836N87842_C_A",
+        "high_count": 66341,
+        "medium_count": 22113,
+        "low_count": 711214,
+        "n": 799668
+      },
+      "morfologico": {
+        "high_min": 0.139489,
+        "high_last_id": "200ME61264N87682_D_B",
+        "medium_min": 0.1137,
+        "medium_last_id": "200ME61438N87764_A_B",
+        "high_count": 66341,
+        "medium_count": 22113,
+        "low_count": 711214,
+        "n": 799668
+      },
+      "nao_morfologico": {
+        "high_min": 0.167731,
+        "high_last_id": "200ME61278N87882_D_B",
+        "medium_min": 0.125746,
+        "medium_last_id": "200ME60760N87832_A_C",
+        "high_count": 66341,
+        "medium_count": 22113,
+        "low_count": 711214,
+        "n": 799668
+      }
+    },
+    "area_conc_urb_salvador": {
+      "completo": {
+        "high_min": 0.13584,
+        "high_last_id": "200ME66582N98552_A_A",
+        "medium_min": 0.094208,
+        "medium_last_id": "200ME67152N98962_D_D",
+        "high_count": 47348,
+        "medium_count": 13510,
+        "low_count": 164306,
+        "n": 225164
+      },
+      "morfologico": {
+        "high_min": 0.229591,
+        "high_last_id": "200ME66788N98732_B_C",
+        "medium_min": 0.177557,
+        "medium_last_id": "200ME66670N98522_D_A",
+        "high_count": 47348,
+        "medium_count": 13510,
+        "low_count": 164306,
+        "n": 225164
+      },
+      "nao_morfologico": {
+        "high_min": 0.314989,
+        "high_last_id": "200ME66654N98528_C_C",
+        "medium_min": 0.22774,
+        "medium_last_id": "200ME66452N98720_D_C",
+        "high_count": 47348,
+        "medium_count": 13510,
+        "low_count": 164306,
+        "n": 225164
+      }
+    },
+    "area_conc_urb_sao_paulo": {
+      "completo": {
+        "high_min": 0.145397,
+        "high_last_id": "200ME57698N86978_B_B",
+        "medium_min": 0.084073,
+        "medium_last_id": "200ME57280N87020_B_C",
+        "high_count": 76533,
+        "medium_count": 25511,
+        "low_count": 912991,
+        "n": 1015035
+      },
+      "morfologico": {
+        "high_min": 0.185326,
+        "high_last_id": "200ME57914N87040_B_B",
+        "medium_min": 0.136363,
+        "medium_last_id": "200ME58080N87072_D_D",
+        "high_count": 76533,
+        "medium_count": 25511,
+        "low_count": 912991,
+        "n": 1015035
+      },
+      "nao_morfologico": {
+        "high_min": 0.144108,
+        "high_last_id": "200ME57810N86998_D_D",
+        "medium_min": 0.084702,
+        "medium_last_id": "200ME57294N87078_C_A",
+        "high_count": 76533,
+        "medium_count": 25511,
+        "low_count": 912991,
+        "n": 1015035
+      }
+    },
+    "area_medias_conc_urb_rj": {
+      "completo": {
+        "high_min": 0.093144,
+        "high_last_id": "200ME62370N87954_A_D",
+        "medium_min": 0.077157,
+        "medium_last_id": "200ME60152N88048_D_B",
+        "high_count": 29093,
+        "medium_count": 9697,
+        "low_count": 325888,
+        "n": 364678
+      },
+      "morfologico": {
+        "high_min": 0.133967,
+        "high_last_id": "200ME63206N88702_C_C",
+        "medium_min": 0.113909,
+        "medium_last_id": "200ME63144N88750_D_A",
+        "high_count": 29093,
+        "medium_count": 9697,
+        "low_count": 325888,
+        "n": 364678
+      },
+      "nao_morfologico": {
+        "high_min": 0.150589,
+        "high_last_id": "200ME62528N88468_D_D",
+        "medium_min": 0.126284,
+        "medium_last_id": "200ME59856N88152_A_D",
+        "high_count": 29093,
+        "medium_count": 9697,
+        "low_count": 325888,
+        "n": 364678
+      }
+    },
+    "area_rgint_belem": {
+      "completo": {
+        "high_min": 0.310873,
+        "high_last_id": "200ME56152N111696_A_C",
+        "medium_min": 0.240199,
+        "medium_last_id": "200ME56540N112034_C_B",
+        "high_count": 73176,
+        "medium_count": 15503,
+        "low_count": 118030,
+        "n": 206709
+      },
+      "morfologico": {
+        "high_min": 0.305859,
+        "high_last_id": "200ME56150N111794_C_A",
+        "medium_min": 0.259345,
+        "medium_last_id": "200ME56402N111812_C_C",
+        "high_count": 73176,
+        "medium_count": 15503,
+        "low_count": 118030,
+        "n": 206709
+      },
+      "nao_morfologico": {
+        "high_min": 0.294104,
+        "high_last_id": "200ME54044N113180_B_A",
+        "medium_min": 0.239338,
+        "medium_last_id": "200ME56150N111886_A_C",
+        "high_count": 73176,
+        "medium_count": 15503,
+        "low_count": 118030,
+        "n": 206709
+      }
+    },
+    "area_rgint_macapa": {
+      "completo": {
+        "high_min": 0.156957,
+        "high_last_id": "200ME53156N113334_A_D",
+        "medium_min": 0.13672,
+        "medium_last_id": "200ME53250N113342_C_B",
+        "high_count": 11774,
+        "medium_count": 3305,
+        "low_count": 45021,
+        "n": 60100
+      },
+      "morfologico": {
+        "high_min": 0.201304,
+        "high_last_id": "200ME53226N113370_B_D",
+        "medium_min": 0.158788,
+        "medium_last_id": "200ME53288N113410_C_A",
+        "high_count": 11774,
+        "medium_count": 3305,
+        "low_count": 45021,
+        "n": 60100
+      },
+      "nao_morfologico": {
+        "high_min": 0.06982,
+        "high_last_id": "200ME53274N113386_D_A",
+        "medium_min": 0.04808,
+        "medium_last_id": "200ME53286N113422_D_D",
+        "high_count": 11774,
+        "medium_count": 3305,
+        "low_count": 45021,
+        "n": 60100
+      }
+    },
+    "area_rgint_redencao": {
+      "completo": {
+        "high_min": 0.028234,
+        "high_last_id": "200ME52202N106014_C_A",
+        "medium_min": 0.028234,
+        "medium_last_id": "200ME52212N106000_C_D",
+        "high_count": 2834,
+        "medium_count": 944,
+        "low_count": 70775,
+        "n": 74553
+      },
+      "morfologico": {
+        "high_min": 0.046635,
+        "high_last_id": "200ME54438N105454_B_B",
+        "medium_min": 0.04421,
+        "medium_last_id": "200ME53214N105826_B_C",
+        "high_count": 2834,
+        "medium_count": 944,
+        "low_count": 70775,
+        "n": 74553
+      },
+      "nao_morfologico": {
+        "high_min": 0.025112,
+        "high_last_id": "200ME52200N106000_A_A",
+        "medium_min": 0.025112,
+        "medium_last_id": "200ME52210N105998_D_C",
+        "high_count": 2834,
+        "medium_count": 944,
+        "low_count": 70775,
+        "n": 74553
+      }
+    }
+  }
+}

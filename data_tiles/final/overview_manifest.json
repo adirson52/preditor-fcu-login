@@ -1,0 +1,20 @@
+{
+  "scenario": "final",
+  "zooms": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "tile_count": 646,
+  "drawn_points": 3517306,
+  "class_counts": {
+    "other": 3003642,
+    "attention": 385244,
+    "priority": 128420
+  },
+  "format": "png",
+  "created_at": "2026-08-27T21:46:19"
+}
