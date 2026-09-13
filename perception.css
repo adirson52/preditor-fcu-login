@@ -69,6 +69,12 @@
 .fcu-choice-outro .fcu-choice-mark { background: #6b7280; }
 .fcu-choice:has(input:checked) { border-color: #7c3aed; background: #f5f0ff; box-shadow: 0 0 0 2px rgba(124,58,237,.12); }
 .fcu-confirm { padding: 10px; border-radius: 9px; background: #f5f0ff; }
+.fcu-knowledge { margin-top:14px !important; padding:10px !important; border:1px solid #d7e3e8 !important; border-radius:10px; }
+.fcu-knowledge legend { margin:0 0 7px !important; padding:0 4px; }
+.fcu-knowledge label { display:flex; gap:7px; align-items:flex-start; margin:7px 0; font-weight:500; }
+.fcu-field-check { padding:10px; border-radius:9px; background:#eef8f1; }
+.fcu-field-date input { display:block; width:100%; box-sizing:border-box; margin-top:6px; border:1px solid #bdd0da; border-radius:9px; padding:10px; font:inherit; }
+.fcu-once-note { margin:8px 0 14px; padding-left:28px; color:#607b8a; font-size:12px; }
 .fcu-perception-drawnote { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); z-index: 2900; min-width: 390px; padding: 12px 16px; border-radius: 14px; background: #26104c; color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.25); text-align: center; }
 .fcu-perception-drawnote strong, .fcu-perception-drawnote span { display: block; margin-bottom: 7px; }
 .fcu-perception-drawnote div { display: flex; gap: 7px; justify-content: center; }
