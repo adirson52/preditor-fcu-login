@@ -19,6 +19,8 @@ test('percepção contextual preserva o mapa e oferece filtros próprios', async
   await expect(page.locator('[data-class-filter]')).toHaveCount(4);
   await expect(page.locator('[data-action-filter]')).toHaveCount(3);
   await expect(page.locator('[name="knowledge_source"]')).toHaveCount(5);
+  await expect(page.locator('[name="confirm_perception"]')).toHaveCount(0);
+  await expect(page.locator('.fcu-extra-details')).toHaveCount(1);
   await expect(page.locator('[name="field_validation"]')).toHaveCount(1);
   await expect(page.locator('[name="consent"]')).toHaveCount(0);
 
