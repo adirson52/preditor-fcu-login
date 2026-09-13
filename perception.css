@@ -1,5 +1,7 @@
+.fcu-perception-map-tools { position:absolute; right:12px; bottom:22px; z-index:850; display:flex; align-items:center; gap:8px; }
+.fcu-perception-map-tools > label { background:#fff; color:#264b60; border:1px solid #c9d8df; border-radius:999px; padding:9px 12px; box-shadow:0 5px 18px rgba(15,43,60,.16); font:700 12px/1.2 inherit; }
 .fcu-perception-button {
-  position: absolute; right: 12px; bottom: 22px; z-index: 850;
+  position: static;
   border: 0; border-radius: 999px; padding: 12px 18px;
   background: #7c3aed; color: #fff; font: 700 14px/1.2 inherit;
   box-shadow: 0 8px 24px rgba(55, 24, 103, .3); cursor: pointer;
@@ -32,6 +34,29 @@
 .fcu-perception-status.is-error { color: #b42318; font-weight: 700; }
 .fcu-perception-steps { margin: 14px 0 18px; padding-left: 22px; color: #456575; }
 .fcu-perception-steps li { margin: 7px 0; }
+.fcu-help { color:#607b8a; font-size:12px; margin:7px 0 12px; }
+.fcu-context-card { padding:14px; margin:14px 0 10px; border:1px solid #c9dce5; border-radius:14px; background:#f7fbfc; }
+.fcu-context-card h3 { margin:3px 0 8px; font-size:18px; }
+.fcu-context-eyebrow { color:#647f8d; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.fcu-model-result,.fcu-item-top { display:flex; gap:9px; align-items:flex-start; }
+.fcu-model-result i,.fcu-item-top i,.fcu-filter-grid i { width:12px; height:12px; margin-top:3px; border-radius:50%; flex:0 0 auto; background:var(--fcu-color); }
+.fcu-model-result span,.fcu-model-result small { display:block; }
+.fcu-model-result small { margin-top:3px; color:#607b8a; }
+.fcu-context-actions { display:grid; gap:8px; margin-top:14px; }
+.fcu-context-actions button { border:1px solid #7c3aed; border-radius:9px; padding:10px; color:#5b21b6; background:#fff; font-weight:750; cursor:pointer; }
+.fcu-context-actions button:first-child { color:#fff; background:#7c3aed; }
+.fcu-free-button { margin-top:4px; }
+.fcu-filter-box { margin:15px 0 4px; padding:11px; border:1px solid #d7e3e8; border-radius:11px; }
+.fcu-filter-box summary { cursor:pointer; font-weight:800; }
+.fcu-filter-master { display:block; margin:10px 0; font-weight:750; }
+.fcu-filter-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.fcu-filter-grid label { display:flex; gap:6px; align-items:flex-start; font-size:12px; }
+.fcu-action-filters { margin-top:10px; padding-top:9px; border-top:1px solid #e0e8ec; }
+.fcu-form-back { border:0; background:transparent; padding:5px 0; color:#5b21b6; font-weight:750; cursor:pointer; }
+.fcu-form-summary { display:flex; flex-direction:column; gap:3px; margin:10px 0; padding:11px; border-radius:9px; background:#f5f0ff; }
+.fcu-form-summary span { color:#5f7080; font-size:13px; }
+.fcu-perception-form label span { font-weight:500; color:#718895; }
+.fcu-perception-form fieldset.is-locked .fcu-choice:not(:has(input:checked)) { display:none !important; }
 .fcu-perception-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 22px; border-bottom: 1px solid #d7e3e8; }
 .fcu-perception-tabs button { border: 0; border-bottom: 3px solid transparent; padding: 10px; background: transparent; color: #526f80; font-weight: 750; cursor: pointer; }
 .fcu-perception-tabs button.is-active { border-bottom-color: #7c3aed; color: #5b21b6; }
@@ -51,12 +76,17 @@
 .fcu-perception-drawnote button:disabled { opacity: .45; cursor: not-allowed; }
 .fcu-perception-item { border-top: 1px solid #dde8ed; padding: 12px 0; }
 .fcu-perception-item strong { display: block; }
+.fcu-item-top { margin-bottom:5px; }
+.fcu-item-top > div { min-width:0; }
 .fcu-perception-item small { color: #607b8a; }
 .fcu-perception-item.is-archived { opacity: .78; }
 .fcu-perception-item-actions { display: flex; gap: 8px; margin-top: 8px; }
 .fcu-perception-item-actions button { border: 1px solid #b7cad4; border-radius: 7px; background: #fff; padding: 6px 9px; cursor: pointer; }
 @media (max-width: 700px) {
-  .fcu-perception-button { right: 9px; bottom: 12px; }
+  .fcu-perception-map-tools { right:9px; bottom:12px; flex-direction:column; align-items:flex-end; }
+  .fcu-perception-map-tools > label { padding:7px 10px; }
+  .fcu-perception-button { padding:10px 14px; }
+  .fcu-filter-grid { grid-template-columns:1fr; }
   .fcu-perception-drawnote { top: 66px; min-width: 0; width: calc(100% - 34px); text-align: center; border-radius: 12px; }
   .fcu-perception-drawnote div { flex-wrap: wrap; }
 }
