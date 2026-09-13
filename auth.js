@@ -273,6 +273,7 @@
     setMessage('Acesso confirmado.');
     await trackEvent('login');
     await resumePendingPoint();
+    closeModal();
   });
 
   document.getElementById('fcu-register-form').addEventListener('submit', async function (event) {
@@ -302,6 +303,7 @@
       updateUserUi(result.data.user);
       setMessage('Conta criada e acesso confirmado.');
       await resumePendingPoint();
+      closeModal();
     } else {
       form.reset();
       setMessage('Cadastro recebido. Abra o e-mail enviado e clique no link para confirmar sua conta.');
