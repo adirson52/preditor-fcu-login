@@ -106,7 +106,9 @@
 .fcu-edit-marker-wrap { background:transparent; border:0; }
 .fcu-edit-marker { display:block; width:18px; height:18px; box-sizing:border-box; border:3px solid #fff; border-radius:50%; background:#0957d0; box-shadow:0 1px 6px rgba(0,0,0,.55); }
 .fcu-edit-marker.vertex.is-selected { width:22px; height:22px; margin:-2px; background:#ffca28; border-color:#092b59; }
-.fcu-edit-marker.midpoint { width:12px; height:12px; margin:3px; background:#fff; border:2px solid #0957d0; opacity:.9; }
+.fcu-extra-details { margin:10px 0 14px; border:1px solid #d7e1e8; border-radius:10px; padding:0 12px 10px; background:#f8fafc; }
+.fcu-extra-details summary { padding:11px 0; color:#526b7d; font-weight:700; cursor:pointer; }
+.fcu-extra-details[open] summary { margin-bottom:2px; }
 .fcu-edit-marker.center { width:24px; height:24px; margin:-3px; border:4px solid #fff; background:#1686ff; }
 @media (max-width: 700px) {
   .fcu-perception-map-tools { right:9px; bottom:12px; flex-direction:column; align-items:flex-end; }
