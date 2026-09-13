@@ -1,236 +1,61 @@
 (function () {
   'use strict';
+  const LABEL={atencao_prioritaria:'Atenção prioritária',atencao:'Atenção',demais_areas:'Demais áreas',outro:'Outro'};
+  const COLOR={atencao_prioritaria:'#d7191c',atencao:'#f28e2b',demais_areas:'#2a9d5b',outro:'#6b7280'};
+  const ACTION={confirm:'Confirmou o modelo',reclassify:'Viu diferente',free:'Desenho livre'};
+  let map,db,layers=L.layerGroup(),items=[],layerById=new Map(),drawing=false,dragging=false,points=[],draftLayer,draft,editingId,lastCell='';
+  const filters={visible:true,classes:new Set(Object.keys(LABEL)),actions:new Set(Object.keys(ACTION))};
+  window.PreditorPerception={isDrawing:()=>drawing};
+  const $=s=>document.querySelector(s), user=()=>window.PreditorAuth&&window.PreditorAuth.user, app=()=>window.__PREDITOR_APP__||{}, sample=()=>app().selectedSample||null;
+  const esc=v=>String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  function status(t,e,target='#fcu-perception-status'){const n=$(target);if(n){n.textContent=t||'';n.classList.toggle('is-error',!!e);}}
+  function open(){ $('#fcu-perception-panel').classList.add('is-open');$('#fcu-perception-shade').classList.add('is-open');renderContext(); }
+  function close(){ $('#fcu-perception-panel').classList.remove('is-open');$('#fcu-perception-shade').classList.remove('is-open'); }
+  function classOf(s){let k=null;try{const fn=window.PreditorModel&&window.PreditorModel.samplePriorityKey;if(typeof fn==='function')k=fn(s);}catch(_){ }return {priority:'atencao_prioritaria',attention:'atencao',other:'demais_areas'}[k]||null;}
+  function cellGeometry(s){const lat=Number(s.lat),lng=Number(s.lng),half=Number(s.res_m||50)/2;if(!Number.isFinite(lat)||!Number.isFinite(lng))return null;const dy=half/111320,dx=half/(111320*Math.max(.2,Math.cos(lat*Math.PI/180)));return {type:'Polygon',coordinates:[[[lng-dx,lat-dy],[lng+dx,lat-dy],[lng+dx,lat+dy],[lng-dx,lat+dy],[lng-dx,lat-dy]]]};}
+  function snapshot(s){return {captured_at:new Date().toISOString(),cell_id:String(s.id||''),area_id:s.scope||s.a||null,model_class:classOf(s),probability:Number.isFinite(Number(s.proba))?Number(s.proba):null,ranking_candidato:Number.isFinite(Number(s.ranking_candidato))?Number(s.ranking_candidato):null,ranking_total:Number.isFinite(Number(s.ranking_total))?Number(s.ranking_total):null,target:Number.isFinite(Number(s.target))?Number(s.target):null,municipio:s.municipio||null,scenario:s.local_scenario||s.winner_scenario||null,resolution_m:Number(s.res_m||50)};}
+  function toPoints(g){const r=g&&g.coordinates&&g.coordinates[0];return (r||[]).slice(0,-1).map(p=>[p[1],p[0]]);}
+  function toGeometry(){const r=points.map(p=>[p[1],p[0]]);r.push(r[0].slice());return {type:'Polygon',coordinates:[r]};}
+  function areaId(){const s=sample();if(s&&(s.scope||s.a))return String(s.scope||s.a);const a=$('#area-select');return a&&a.value||null;}
+  function requireLogin(){if(user())return true;close();const b=$('#fcu-auth-button');if(b)b.click();return false;}
 
-  const TYPE_LABELS = {
-    atencao_prioritaria: 'Atenção prioritária', atencao: 'Atenção',
-    demais_areas: 'Demais áreas',
-    expansao_urbana: 'Expansão urbana', consolidacao: 'Consolidação urbana',
-    vulnerabilidade: 'Vulnerabilidade ou risco', infraestrutura: 'Carência de infraestrutura',
-    pressao_ambiental: 'Pressão ambiental', outro: 'Outro'
-  };
-  let map, client, drawing = false, vertices = [], draftLayer = null;
-  let savedLayers = L.layerGroup();
-
-  window.PreditorPerception = { isDrawing: function () { return drawing; } };
-
-  function el(selector) { return document.querySelector(selector); }
-  function currentUser() { return window.PreditorAuth && window.PreditorAuth.user; }
-  function setStatus(text, error) {
-    const node = el('#fcu-perception-status');
-    if (!node) return;
-    node.textContent = text || '';
-    node.classList.toggle('is-error', Boolean(error));
-  }
-  function openPanel() { el('#fcu-perception-panel').classList.add('is-open'); el('#fcu-perception-shade').classList.add('is-open'); }
-  function closePanel() { el('#fcu-perception-panel').classList.remove('is-open'); el('#fcu-perception-shade').classList.remove('is-open'); }
-
-  function buildUi() {
-    const mapPanel = document.querySelector('.local-map-panel');
-    if (!mapPanel || document.querySelector('.fcu-perception-button')) return false;
-    if (getComputedStyle(mapPanel).position === 'static') mapPanel.style.position = 'relative';
-    mapPanel.insertAdjacentHTML('beforeend', '<button class="fcu-perception-button" type="button">＋ Criar percepção</button>');
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="fcu-perception-shade" id="fcu-perception-shade"></div>
-      <aside class="fcu-perception-panel" id="fcu-perception-panel" aria-label="Percepções territoriais">
-        <div class="fcu-perception-head"><div><h2>Percepções territoriais</h2><p>Desenhe uma área e registre brevemente o que você percebe.</p></div><button class="fcu-perception-close" type="button" aria-label="Fechar">×</button></div>
-        <div id="fcu-perception-start">
-          <ol class="fcu-perception-steps"><li>Clique em <strong>Desenhar área</strong>.</li><li>Marque o contorno no mapa.</li><li>Use <strong>Concluir</strong> quando terminar.</li></ol>
-          <button class="fcu-perception-primary" id="fcu-start-drawing" type="button">Desenhar área percebida</button>
-          <p class="fcu-perception-status" id="fcu-perception-status"></p>
-          <div class="fcu-perception-tabs"><button class="is-active" type="button" data-perception-tab="active">Atuais</button><button type="button" data-perception-tab="history">Histórico</button></div>
-          <div id="fcu-perception-list"><p>Entre para consultar seus desenhos.</p></div>
-          <div id="fcu-perception-history" hidden><p>Nenhum item no histórico.</p></div>
-        </div>
-        <form class="fcu-perception-form" id="fcu-perception-form" hidden>
-          <h3>Conte brevemente sobre a área</h3>
-          <label for="fcu-perception-title">Título</label><input id="fcu-perception-title" name="title" type="text" maxlength="120" required placeholder="Ex.: ocupação recente">
-          <fieldset><legend>Como você classifica esta área?</legend>
-            ${[['atencao_prioritaria','Atenção prioritária'],['atencao','Atenção'],['demais_areas','Demais áreas'],['outro','Outro']].map(([value, label]) => `<label class="fcu-choice fcu-choice-${value}"><input type="radio" name="classification" value="${value}" required><span class="fcu-choice-mark">✓</span><span>${label}</span></label>`).join('')}
-          </fieldset>
-          <label for="fcu-perception-intensity">Intensidade</label><select id="fcu-perception-intensity" name="intensity" required><option value="">Selecione</option><option value="1">1 · Muito baixa</option><option value="2">2 · Baixa</option><option value="3">3 · Média</option><option value="4">4 · Alta</option><option value="5">5 · Muito alta</option></select>
-          <label for="fcu-perception-time">Referência temporal</label><select id="fcu-perception-time" name="time_reference" required><option value="atual">Atualmente</option><option value="recente">Nos últimos anos</option><option value="historica">É histórica</option><option value="nao_sei">Não sei informar</option></select>
-          <label for="fcu-perception-confidence">Grau de confiança</label><select id="fcu-perception-confidence" name="confidence" required><option value="media">Médio</option><option value="baixa">Baixo</option><option value="alta">Alto</option></select>
-          <label for="fcu-perception-description">Descrição breve</label><textarea id="fcu-perception-description" name="description" maxlength="800" rows="4"></textarea>
-          <label class="fcu-check fcu-confirm"><input type="checkbox" name="confirm_perception" required> Confirmo que o polígono representa a área percebida e que a classificação está correta.</label>
-          <label class="fcu-check"><input type="checkbox" name="consent" required> Autorizo o uso desta percepção em análises e relatórios acadêmicos.</label>
-          <div class="fcu-perception-actions"><button class="fcu-perception-secondary" id="fcu-cancel-form" type="button">Cancelar</button><button class="fcu-perception-primary" type="submit">Salvar percepção</button></div>
-          <p class="fcu-perception-status" id="fcu-form-status"></p>
-        </form>
-      </aside>`);
-    el('.fcu-perception-button').addEventListener('click', function () { openPanel(); loadPerceptions(); });
-    el('.fcu-perception-close').addEventListener('click', closePanel);
-    el('#fcu-perception-shade').addEventListener('click', closePanel);
-    el('#fcu-start-drawing').addEventListener('click', startDrawing);
-    el('#fcu-cancel-form').addEventListener('click', resetDraft);
-    el('#fcu-perception-form').addEventListener('submit', savePerception);
-    document.querySelectorAll('[data-perception-tab]').forEach(function (button) {
-      button.addEventListener('click', function () { showListTab(button.dataset.perceptionTab); });
-    });
-    return true;
-  }
-
-  function requireLogin() {
-    if (currentUser()) return true;
-    closePanel();
-    const authButton = document.getElementById('fcu-auth-button');
-    if (authButton) authButton.click();
-    return false;
-  }
-
-  function startDrawing() {
-    if (!requireLogin()) return;
-    closePanel(); drawing = true; vertices = [];
-    if (draftLayer) map.removeLayer(draftLayer);
-    document.body.insertAdjacentHTML('beforeend', '<div class="fcu-perception-drawnote" id="fcu-perception-drawnote"><strong>Desenhe o contorno da área</strong><span id="fcu-point-count">0 pontos marcados</span><div><button type="button" id="fcu-undo-point" disabled>↶ Desfazer ponto</button><button type="button" id="fcu-finish-drawing" disabled>✓ Concluir</button><button type="button" id="fcu-cancel-drawing">Cancelar</button></div></div>');
-    el('#fcu-undo-point').onclick = undoPoint;
-    el('#fcu-finish-drawing').onclick = finishDrawing;
-    el('#fcu-cancel-drawing').onclick = function () { resetDraft(); openPanel(); };
-    map.getContainer().style.cursor = 'crosshair';
-    setStatus('');
-  }
-
-  function onMapClick(event) {
-    if (!drawing) return;
-    vertices.push([event.latlng.lat, event.latlng.lng]);
-    if (draftLayer) map.removeLayer(draftLayer);
-    draftLayer = vertices.length >= 3
-      ? L.polygon(vertices, { color: '#7c3aed', weight: 3, fillOpacity: .2 }).addTo(map)
-      : L.polyline(vertices, { color: '#7c3aed', weight: 3 }).addTo(map);
-    updateDrawingControls();
-  }
-
-  function updateDrawingControls() {
-    const count = el('#fcu-point-count'), undo = el('#fcu-undo-point'), finish = el('#fcu-finish-drawing');
-    if (count) count.textContent = vertices.length + (vertices.length === 1 ? ' ponto marcado' : ' pontos marcados');
-    if (undo) undo.disabled = vertices.length === 0;
-    if (finish) finish.disabled = vertices.length < 3;
-  }
-
-  function undoPoint() {
-    if (!vertices.length) return;
-    vertices.pop();
-    if (draftLayer) { map.removeLayer(draftLayer); draftLayer = null; }
-    if (vertices.length) draftLayer = (vertices.length >= 3
-      ? L.polygon(vertices, { color: '#7c3aed', weight: 3, fillOpacity: .2 })
-      : L.polyline(vertices, { color: '#7c3aed', weight: 3 })).addTo(map);
-    updateDrawingControls();
-  }
-
-  function finishDrawing(event) {
-    if (event) { event.preventDefault(); event.stopPropagation(); }
-    if (vertices.length < 3) return;
-    drawing = false; map.getContainer().style.cursor = '';
-    const note = el('#fcu-perception-drawnote'); if (note) note.remove();
-    el('#fcu-perception-start').hidden = true;
-    el('#fcu-perception-form').hidden = false;
-    openPanel();
-  }
-
-  function resetDraft() {
-    drawing = false; vertices = [];
-    if (draftLayer) { map.removeLayer(draftLayer); draftLayer = null; }
-    const note = el('#fcu-perception-drawnote'); if (note) note.remove();
-    map.getContainer().style.cursor = '';
-    el('#fcu-perception-form').reset(); el('#fcu-perception-form').hidden = true;
-    el('#fcu-perception-start').hidden = false; setStatus('');
-  }
-
-  function geoJSON() {
-    const ring = vertices.map(function (point) { return [point[1], point[0]]; });
-    ring.push(ring[0].slice());
-    return { type: 'Polygon', coordinates: [ring] };
-  }
-
-  function areaId() {
-    const sample = window.__PREDITOR_APP__ && window.__PREDITOR_APP__.selectedSample;
-    if (sample && (sample.a || sample.scope)) return String(sample.a || sample.scope);
-    const area = document.getElementById('area-select');
-    return area && area.value ? area.value : null;
-  }
-
-  async function savePerception(event) {
-    event.preventDefault();
-    if (!requireLogin() || vertices.length < 3) return;
-    const form = event.currentTarget, values = new FormData(form), classification = String(values.get('classification') || '');
-    const status = el('#fcu-form-status');
-    if (!classification) { status.textContent = 'Escolha uma classificação para a área.'; status.classList.add('is-error'); return; }
-    const submit = form.querySelector('[type="submit"]'); submit.disabled = true; status.textContent = 'Salvando...'; status.classList.remove('is-error');
-    const result = await client.from('fcu_perceptions').insert({
-      user_id: currentUser().id, title: String(values.get('title') || '').trim(),
-      perception_types: [classification], intensity: Number(values.get('intensity')),
-      time_reference: String(values.get('time_reference')), confidence: String(values.get('confidence')),
-      description: String(values.get('description') || '').trim(), area_id: areaId(),
-      geometry: geoJSON(), status: 'submitted'
-    });
-    submit.disabled = false;
-    if (result.error) { status.textContent = 'Não foi possível salvar: ' + result.error.message; status.classList.add('is-error'); return; }
-    resetDraft(); openPanel(); setStatus('Percepção salva. Ela estará disponível quando você voltar.'); await loadPerceptions();
-  }
-
-  async function archive(id) {
-    if (!confirm('Excluir esta percepção da lista atual? Ela será movida para o Histórico e poderá ser restaurada.')) return;
-    const result = await client.from('fcu_perceptions').update({ status: 'archived' }).eq('id', id);
-    if (result.error) return setStatus('Não foi possível arquivar.', true);
-    setStatus('Percepção movida para o Histórico.'); loadPerceptions();
-  }
-
-  async function restore(id) {
-    const result = await client.from('fcu_perceptions').update({ status: 'submitted' }).eq('id', id);
-    if (result.error) return setStatus('Não foi possível restaurar.', true);
-    setStatus('Percepção restaurada.'); showListTab('active'); loadPerceptions();
-  }
-
-  function showListTab(tab) {
-    const history = tab === 'history';
-    el('#fcu-perception-list').hidden = history;
-    el('#fcu-perception-history').hidden = !history;
-    document.querySelectorAll('[data-perception-tab]').forEach(function (button) { button.classList.toggle('is-active', button.dataset.perceptionTab === tab); });
-  }
-
-  async function loadPerceptions() {
-    const list = el('#fcu-perception-list'), history = el('#fcu-perception-history'); if (!list || !history) return;
-    savedLayers.clearLayers();
-    if (!currentUser()) { list.innerHTML = '<p>Entre para consultar seus desenhos.</p>'; history.innerHTML = '<p>Entre para consultar o histórico.</p>'; return; }
-    list.innerHTML = '<p>Carregando...</p>'; history.innerHTML = '<p>Carregando...</p>';
-    const result = await client.from('fcu_perceptions').select('id,title,perception_types,intensity,geometry,status,created_at,updated_at').order('created_at', { ascending: false });
-    if (result.error) { list.innerHTML = '<p>Não foi possível carregar os polígonos.</p>'; return; }
-    const versionsResult = await client.from('fcu_perception_versions').select('perception_id,version');
-    const versionCounts = {};
-    (versionsResult.data || []).forEach(function (row) { versionCounts[row.perception_id] = Math.max(versionCounts[row.perception_id] || 0, row.version); });
-    const activeItems = result.data.filter(function (item) { return item.status !== 'archived'; });
-    const historyItems = result.data.filter(function (item) { return item.status === 'archived'; });
-    list.innerHTML = activeItems.length ? '' : '<p>Você ainda não salvou percepções.</p>';
-    history.innerHTML = historyItems.length ? '' : '<p>Nenhuma percepção excluída.</p>';
-    result.data.forEach(function (item) {
-      const latlngs = item.geometry.coordinates[0].map(function (p) { return [p[1], p[0]]; });
-      const archived = item.status === 'archived';
-      const layer = L.polygon(latlngs, { color: archived ? '#6b7280' : '#7c3aed', weight: 2, fillOpacity: .16 });
-      if (!archived) layer.addTo(savedLayers);
-      const card = document.createElement('div'); card.className = 'fcu-perception-item' + (archived ? ' is-archived' : '');
-      const labels = (item.perception_types || []).map(function (t) { return TYPE_LABELS[t] || t; }).join(' · ');
-      const versionText = `${versionCounts[item.id] || 1} ${(versionCounts[item.id] || 1) === 1 ? 'versão' : 'versões'}`;
-      card.innerHTML = `<strong></strong><small>${labels} · intensidade ${item.intensity}/5 · ${versionText}</small><div class="fcu-perception-item-actions"><button type="button" data-view>Ver no mapa</button>${archived ? '<button type="button" data-restore>Restaurar</button>' : '<button type="button" data-archive>Excluir</button>'}</div>`;
-      card.querySelector('strong').textContent = item.title;
-      card.querySelector('[data-view]').onclick = function () {
-        closePanel();
-        if (archived && !map.hasLayer(layer)) { layer.addTo(map); setTimeout(function () { if (map.hasLayer(layer)) map.removeLayer(layer); }, 8000); }
-        map.fitBounds(layer.getBounds(), { padding: [30, 30] });
-      };
-      if (archived) card.querySelector('[data-restore]').onclick = function () { restore(item.id); };
-      else card.querySelector('[data-archive]').onclick = function () { archive(item.id); };
-      (archived ? history : list).appendChild(card);
-    });
-  }
-
-  function init() {
-    map = window.__PREDITOR_APP__ && window.__PREDITOR_APP__.map;
-    client = window.PreditorAuth && window.PreditorAuth.client;
-    if (!map || !client || !buildUi()) return false;
-    savedLayers.addTo(map); map.on('click', onMapClick);
-    client.auth.onAuthStateChange(function () { setTimeout(loadPerceptions, 0); });
-    return true;
-  }
-
-  let attempts = 0;
-  const timer = setInterval(function () { attempts += 1; if (init() || attempts > 120) clearInterval(timer); }, 250);
+  function build(){const host=document.querySelector('.local-map-panel');if(!host||$('.fcu-perception-button'))return false;if(getComputedStyle(host).position==='static')host.style.position='relative';
+    host.insertAdjacentHTML('beforeend','<div class="fcu-perception-map-tools"><button class="fcu-perception-button" type="button">＋ Criar percepção</button><label><input id="fcu-layer-toggle" type="checkbox" checked> Minhas percepções</label></div>');
+    document.body.insertAdjacentHTML('beforeend',`<div class="fcu-perception-shade" id="fcu-perception-shade"></div><aside class="fcu-perception-panel" id="fcu-perception-panel" aria-label="Percepções territoriais">
+    <div class="fcu-perception-head"><div><h2>Minha percepção</h2><p>Compare sua leitura do território com o resultado do Preditor.</p></div><button class="fcu-perception-close" type="button" aria-label="Fechar">×</button></div>
+    <div id="fcu-perception-start"><section class="fcu-context-card" id="fcu-context-card"></section><button class="fcu-perception-secondary fcu-free-button" id="fcu-start-drawing" type="button">✎ Desenhar outra área</button><p class="fcu-help">No desenho livre, clique nos vértices ou pressione e arraste pelo contorno.</p><p class="fcu-perception-status" id="fcu-perception-status"></p>
+    <details class="fcu-filter-box" open><summary>Filtrar camada de percepções</summary><label class="fcu-filter-master"><input data-layer-visible type="checkbox" checked> Exibir no mapa</label><div class="fcu-filter-grid">${Object.entries(LABEL).map(([v,l])=>`<label><input data-class-filter="${v}" type="checkbox" checked><i style="--fcu-color:${COLOR[v]}"></i>${l}</label>`).join('')}</div><div class="fcu-filter-grid fcu-action-filters">${Object.entries(ACTION).map(([v,l])=>`<label><input data-action-filter="${v}" type="checkbox" checked>${l}</label>`).join('')}</div></details>
+    <div class="fcu-perception-tabs"><button class="is-active" type="button" data-tab="active">Minhas percepções</button><button type="button" data-tab="history">Lixeira</button></div><div id="fcu-perception-list"></div><div id="fcu-perception-history" hidden></div></div>
+    <form class="fcu-perception-form" id="fcu-perception-form" hidden><button class="fcu-form-back" id="fcu-cancel-form" type="button">← Voltar</button><div class="fcu-form-summary" id="fcu-form-summary"></div>
+    <label>Título</label><input name="title" type="text" maxlength="120" required placeholder="Ex.: área que conheço bem"><fieldset id="fcu-class-field"><legend>Como você classifica esta área?</legend>${Object.entries(LABEL).map(([v,l])=>`<label class="fcu-choice fcu-choice-${v}"><input type="radio" name="classification" value="${v}" required><span class="fcu-choice-mark">✓</span><span>${l}</span></label>`).join('')}</fieldset>
+    <label>Força dessa percepção</label><select name="intensity" required><option value="3">Média</option><option value="1">Muito baixa</option><option value="2">Baixa</option><option value="4">Alta</option><option value="5">Muito alta</option></select><label>Quando isso é percebido?</label><select name="time_reference" required><option value="atual">Atualmente</option><option value="recente">Nos últimos anos</option><option value="historica">É histórico</option><option value="nao_sei">Não sei informar</option></select><label>Quanto conhece a área?</label><select name="confidence" required><option value="media">Razoavelmente</option><option value="baixa">Pouco</option><option value="alta">Muito bem</option></select>
+    <label>Comentário breve <span>(opcional)</span></label><textarea name="description" maxlength="800" rows="3" placeholder="O que sustenta sua percepção?"></textarea><label class="fcu-check fcu-confirm"><input type="checkbox" name="confirm_perception" required> Confirmo que esta área e a classificação representam minha percepção.</label><label class="fcu-check"><input type="checkbox" name="consent" required> Autorizo o uso em análises e relatórios acadêmicos.</label><button class="fcu-perception-primary" type="submit">Confirmar e salvar percepção</button><p class="fcu-perception-status" id="fcu-form-status"></p></form></aside>`);
+    $('.fcu-perception-button').onclick=()=>{open();load();};$('.fcu-perception-close').onclick=close;$('#fcu-perception-shade').onclick=close;$('#fcu-start-drawing').onclick=startDrawing;$('#fcu-cancel-form').onclick=reset;$('#fcu-perception-form').onsubmit=save;
+    $('#fcu-layer-toggle').onchange=e=>setVisible(e.target.checked);document.querySelectorAll('[data-layer-visible]').forEach(n=>n.onchange=e=>setVisible(e.target.checked));
+    document.querySelectorAll('[data-class-filter]').forEach(n=>n.onchange=e=>{e.target.checked?filters.classes.add(e.target.dataset.classFilter):filters.classes.delete(e.target.dataset.classFilter);renderLayers();});
+    document.querySelectorAll('[data-action-filter]').forEach(n=>n.onchange=e=>{e.target.checked?filters.actions.add(e.target.dataset.actionFilter):filters.actions.delete(e.target.dataset.actionFilter);renderLayers();});
+    document.querySelectorAll('[data-tab]').forEach(n=>n.onclick=()=>showTab(n.dataset.tab));return true;}
+  function setVisible(v){filters.visible=v;$('#fcu-layer-toggle').checked=v;document.querySelectorAll('[data-layer-visible]').forEach(n=>n.checked=v);if(v&&!map.hasLayer(layers))layers.addTo(map);if(!v&&map.hasLayer(layers))map.removeLayer(layers);}
+  function renderContext(){const h=$('#fcu-context-card'),s=sample(),k=classOf(s);if(!h)return;if(!s||!k){h.innerHTML='<h3>Avalie um resultado do mapa</h3><p>Clique primeiro em uma célula do Preditor. Depois confirme o resultado ou indique outra classificação.</p>';lastCell='';return;}lastCell=String(s.id||'');const p=Number.isFinite(Number(s.proba))?(Number(s.proba)*100).toFixed(1)+'%':'—';h.innerHTML=`<span class="fcu-context-eyebrow">Célula selecionada</span><h3>${esc(s.id)}</h3><div class="fcu-model-result"><i style="--fcu-color:${COLOR[k]}"></i><span>Preditor: <strong>${LABEL[k]}</strong><small>Probabilidade ${p}</small></span></div><div class="fcu-context-actions"><button type="button" data-confirm>✓ Concordo com o resultado</button><button type="button" data-different>Vejo esta área diferente</button></div><p class="fcu-help">Sua opinião é uma camada separada e não altera o resultado original.</p>`;h.querySelector('[data-confirm]').onclick=()=>beginCell('confirm');h.querySelector('[data-different]').onclick=()=>beginCell('reclassify');}
+  function beginCell(action){if(!requireLogin())return;const s=sample(),k=classOf(s),g=cellGeometry(s);if(!s||!k||!g)return status('Selecione novamente uma célula válida.',true);draft={target_kind:'cell',action_type:action,cell_id:String(s.id),model_class:k,model_probability:Number.isFinite(Number(s.proba))?Number(s.proba):null,model_snapshot:snapshot(s),geometry_source:'model_cell',geometry:g};points=toPoints(g);editingId=null;showForm(action==='confirm'?k:null);}
+  function showForm(selected,record){const f=$('#fcu-perception-form');$('#fcu-perception-start').hidden=true;f.hidden=false;f.reset();const model=draft.model_class&&LABEL[draft.model_class];$('#fcu-form-summary').innerHTML=draft.action_type==='confirm'?`<strong>✓ Confirmar resultado</strong><span>Preditor: ${model}</span>`:draft.action_type==='reclassify'?`<strong>Indicar uma leitura diferente</strong><span>Preditor: ${model}</span>`:'<strong>Classificar a área desenhada</strong><span>Desenho livre</span>';
+    if(record){f.title.value=record.title||'';f.intensity.value=record.intensity||3;f.time_reference.value=record.time_reference||'atual';f.confidence.value=record.confidence||'media';f.description.value=record.description||'';}else f.title.value=draft.action_type==='confirm'?`Confirmo ${model}`:'';
+    const choice=f.querySelector(`[name="classification"][value="${selected||(record&&record.perceived_class)||''}"]`);if(choice)choice.checked=true;const locked=draft.action_type==='confirm';f.querySelectorAll('[name="classification"]').forEach(n=>n.disabled=locked);$('#fcu-class-field').classList.toggle('is-locked',locked);open();status('',false,'#fcu-form-status');}
+  function startDrawing(){if(!requireLogin())return;close();drawing=true;dragging=false;points=[];draft=null;editingId=null;if(draftLayer)map.removeLayer(draftLayer);draftLayer=null;document.body.insertAdjacentHTML('beforeend','<div class="fcu-perception-drawnote" id="fcu-perception-drawnote"><strong>Desenhe a área percebida</strong><span id="fcu-point-count">Clique nos vértices ou pressione e arraste</span><div><button id="fcu-undo" type="button" disabled>↶ Desfazer</button><button id="fcu-finish" type="button" disabled>✓ Concluir</button><button id="fcu-cancel" type="button">Cancelar</button></div></div>');$('#fcu-undo').onclick=()=>{points.pop();redraw();};$('#fcu-finish').onclick=finish;$('#fcu-cancel').onclick=()=>{reset();open();};map.getContainer().style.cursor='crosshair';}
+  function redraw(){if(draftLayer)map.removeLayer(draftLayer);draftLayer=points.length>=3?L.polygon(points,{color:'#7c3aed',weight:3,fillOpacity:.18}).addTo(map):points.length?L.polyline(points,{color:'#7c3aed',weight:3}).addTo(map):null;const c=$('#fcu-point-count');if(c)c.textContent=`${points.length} ${points.length===1?'ponto':'pontos'} marcados`;if($('#fcu-undo'))$('#fcu-undo').disabled=!points.length;if($('#fcu-finish'))$('#fcu-finish').disabled=points.length<3;}
+  function add(latlng){const p=[latlng.lat,latlng.lng],prev=points[points.length-1];if(prev&&map.distance(prev,p)<3)return;points.push(p);redraw();}
+  function mapClick(e){if(drawing&&!dragging)add(e.latlng);}function pointerDown(e){if(!drawing||e.button!==0||e.target.closest('.leaflet-control'))return;dragging=true;map.dragging.disable();add(map.mouseEventToLatLng(e));}function pointerMove(e){if(drawing&&dragging)add(map.mouseEventToLatLng(e));}function pointerUp(e){if(!drawing||!dragging)return;add(map.mouseEventToLatLng(e));dragging=false;map.dragging.enable();if(points.length>=5)finish(e);}
+  function finish(e){if(e){e.preventDefault();e.stopPropagation();}if(points.length<3)return;drawing=false;dragging=false;map.dragging.enable();map.getContainer().style.cursor='';const n=$('#fcu-perception-drawnote');if(n)n.remove();draft={target_kind:'polygon',action_type:'free',cell_id:null,model_class:null,model_probability:null,model_snapshot:{captured_at:new Date().toISOString(),area_id:areaId()},geometry_source:'user_polygon',geometry:toGeometry()};showForm(null);}
+  function reset(){drawing=false;dragging=false;points=[];draft=null;editingId=null;if(map){map.dragging.enable();map.getContainer().style.cursor='';}if(draftLayer){map.removeLayer(draftLayer);draftLayer=null;}const n=$('#fcu-perception-drawnote');if(n)n.remove();const f=$('#fcu-perception-form');if(f){f.reset();f.hidden=true;}if($('#fcu-perception-start'))$('#fcu-perception-start').hidden=false;status('');renderContext();}
+  async function save(e){e.preventDefault();if(!requireLogin()||!draft)return;const f=e.currentTarget,v=new FormData(f),perceived=draft.action_type==='confirm'?draft.model_class:String(v.get('classification')||'');if(!perceived)return status('Escolha uma classificação.',true,'#fcu-form-status');if(draft.action_type==='reclassify'&&perceived===draft.model_class)return status('Para concordar, volte e use “Concordo com o resultado”. Aqui escolha uma classe diferente.',true,'#fcu-form-status');const payload={user_id:user().id,title:String(v.get('title')||'').trim(),perception_types:[perceived],perceived_class:perceived,intensity:Number(v.get('intensity')),time_reference:String(v.get('time_reference')),confidence:String(v.get('confidence')),description:String(v.get('description')||'').trim(),area_id:areaId(),geometry:draft.geometry,status:'submitted',target_kind:draft.target_kind,action_type:draft.action_type,cell_id:draft.cell_id,model_class:draft.model_class,model_probability:draft.model_probability,model_snapshot:draft.model_snapshot||{},geometry_source:draft.geometry_source};const id=editingId,b=f.querySelector('[type="submit"]');b.disabled=true;status('Salvando...',false,'#fcu-form-status');const r=id?await db.from('fcu_perceptions').update(payload).eq('id',id):await db.from('fcu_perceptions').insert(payload);b.disabled=false;if(r.error)return status('Não foi possível salvar: '+r.error.message,true,'#fcu-form-status');reset();open();status(id?'Alteração salva; a versão anterior foi preservada.':'Percepção salva na sua camada.');await load();}
+  async function archive(id){if(!confirm('Remover esta percepção do mapa e enviá-la para a Lixeira?'))return;const r=await db.from('fcu_perceptions').update({status:'archived'}).eq('id',id);if(r.error)return status('Não foi possível excluir.',true);status('Percepção removida do mapa. Ela pode ser restaurada.');load();}
+  async function restore(id){const r=await db.from('fcu_perceptions').update({status:'submitted'}).eq('id',id);if(r.error)return status('Não foi possível restaurar.',true);showTab('active');status('Percepção restaurada no mapa.');load();}
+  function edit(r){editingId=r.id;draft={target_kind:r.target_kind||'polygon',action_type:r.action_type||'free',cell_id:r.cell_id,model_class:r.model_class,model_probability:r.model_probability,model_snapshot:r.model_snapshot||{},geometry_source:r.geometry_source||'user_polygon',geometry:r.geometry};points=toPoints(r.geometry);showForm(r.perceived_class||(r.perception_types||[])[0],r);}
+  function showTab(tab){const h=tab==='history';$('#fcu-perception-list').hidden=h;$('#fcu-perception-history').hidden=!h;document.querySelectorAll('[data-tab]').forEach(n=>n.classList.toggle('is-active',n.dataset.tab===tab));}
+  function style(r){const k=r.perceived_class||(r.perception_types||[])[0]||'outro';return {color:COLOR[k],weight:r.action_type==='reclassify'?3:2,dashArray:r.action_type==='reclassify'?'7 5':null,fillOpacity:.18};}
+  function renderLayers(){layers.clearLayers();layerById.clear();items.filter(r=>r.status!=='archived').forEach(r=>{const k=r.perceived_class||(r.perception_types||[])[0]||'outro';if(!filters.classes.has(k)||!filters.actions.has(r.action_type||'free'))return;const pts=toPoints(r.geometry);if(pts.length<3)return;const l=L.polygon(pts,style(r)).bindPopup(`<strong>${esc(r.title)}</strong><div>${ACTION[r.action_type||'free']}</div>${r.model_class?`<div>Preditor: <b>${LABEL[r.model_class]}</b></div>`:''}<div>Sua percepção: <b>${LABEL[k]}</b></div>`).addTo(layers);layerById.set(r.id,l);});}
+  function card(r,count){const archived=r.status==='archived',k=r.perceived_class||(r.perception_types||[])[0]||'outro',c=document.createElement('article');c.className='fcu-perception-item'+(archived?' is-archived':'');c.innerHTML=`<div class="fcu-item-top"><i style="--fcu-color:${COLOR[k]}"></i><div><strong>${esc(r.title)}</strong><small>${ACTION[r.action_type||'free']} · ${LABEL[k]}</small></div></div><small>${new Date(r.created_at).toLocaleDateString('pt-BR')} · ${count} ${count===1?'versão':'versões'}</small><div class="fcu-perception-item-actions"><button data-view>Ver no mapa</button>${archived?'<button data-restore>Restaurar</button>':'<button data-edit>Editar</button><button data-archive>Excluir</button>'}</div>`;c.querySelector('[data-view]').onclick=()=>{const temp=L.polygon(toPoints(r.geometry),style(r));close();const l=layerById.get(r.id)||temp.addTo(map);map.fitBounds(l.getBounds(),{padding:[30,30]});if(!layerById.has(r.id))setTimeout(()=>map.hasLayer(temp)&&map.removeLayer(temp),8000);};if(archived)c.querySelector('[data-restore]').onclick=()=>restore(r.id);else{c.querySelector('[data-edit]').onclick=()=>edit(r);c.querySelector('[data-archive]').onclick=()=>archive(r.id);}return c;}
+  async function load(){const list=$('#fcu-perception-list'),history=$('#fcu-perception-history');if(!list)return;if(!user()){items=[];renderLayers();list.innerHTML='<p>Entre para consultar suas percepções.</p>';history.innerHTML='<p>Entre para consultar a Lixeira.</p>';return;}list.innerHTML='<p>Carregando...</p>';const r=await db.from('fcu_perceptions').select('*').order('created_at',{ascending:false});if(r.error){list.innerHTML='<p>Não foi possível carregar suas percepções.</p>';return;}const vr=await db.from('fcu_perception_versions').select('perception_id,version'),counts={};(vr.data||[]).forEach(v=>counts[v.perception_id]=Math.max(counts[v.perception_id]||0,v.version));items=r.data||[];renderLayers();const active=items.filter(x=>x.status!=='archived'),trash=items.filter(x=>x.status==='archived');list.innerHTML=active.length?'':'<p>Você ainda não registrou percepções.</p>';history.innerHTML=trash.length?'':'<p>A lixeira está vazia.</p>';active.forEach(x=>list.appendChild(card(x,counts[x.id]||1)));trash.forEach(x=>history.appendChild(card(x,counts[x.id]||1)));}
+  function init(){map=app().map;db=window.PreditorAuth&&window.PreditorAuth.client;if(!map||!db||!build())return false;layers.addTo(map);map.on('click',mapClick);const c=map.getContainer();c.addEventListener('pointerdown',pointerDown,true);c.addEventListener('pointermove',pointerMove,true);c.addEventListener('pointerup',pointerUp,true);db.auth.onAuthStateChange(()=>setTimeout(load,0));load();setInterval(()=>{const id=String((sample()||{}).id||'');if(id!==lastCell&&$('#fcu-perception-panel').classList.contains('is-open'))renderContext();},350);return true;}
+  let tries=0;const timer=setInterval(()=>{tries++;if(init()||tries>120)clearInterval(timer);},250);
 })();
