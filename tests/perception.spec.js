@@ -23,7 +23,7 @@ test('percepção contextual preserva o mapa e oferece filtros próprios', async
   await expect(page.locator('[name="consent"]')).toHaveCount(0);
 
   await page.locator('[data-layer-visible]').uncheck();
-  await expect(page.locator('#fcu-layer-toggle')).not.toBeChecked();
+  await expect(page.locator('[data-layer-visible]')).not.toBeChecked();
   await expect(page.locator('#map')).toBeVisible();
 });
 
