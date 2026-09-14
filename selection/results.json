@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-09-14T13:14:33-03:00",
+  "updatedAt": "2026-09-14T20:31:53-03:00",
   "timeZone": "America/Sao_Paulo",
-  "completed": 60,
+  "completed": 64,
   "expected": 182,
   "completedAreas": 6,
   "candidates": 114,
   "sensorsIncluded": false,
-  "summarySHA256": "d55ebe685d2e8cfa1f2b056259fac039e400be15e31e42dedaafdbe8c3ee2168",
+  "summarySHA256": "4f29a97fa2f7e17b0c4411a712673942ef1b299eb1c9e77bda2e8cb3d7652cfc",
   "rows": [
     {
       "id": "area_cu_aracaju",
@@ -411,7 +411,7 @@
     {
       "id": "area_cu_curitiba",
       "name": "Curitiba",
-      "completed": 3,
+      "completed": 4,
       "status": "running",
       "values": [
         {
@@ -435,14 +435,14 @@
         {
           "scenario": "morfologico_ibge",
           "label": "M + I",
-          "k": null,
-          "status": "running"
+          "k": 32,
+          "status": "completed"
         },
         {
           "scenario": "morfologico_economico_urbano",
           "label": "M + U",
           "k": null,
-          "status": "pending"
+          "status": "running"
         },
         {
           "scenario": "ibge_economico_urbano",
@@ -461,7 +461,7 @@
     {
       "id": "area_cu_florianopolis",
       "name": "Florianópolis",
-      "completed": 3,
+      "completed": 6,
       "status": "running",
       "values": [
         {
@@ -485,26 +485,26 @@
         {
           "scenario": "morfologico_ibge",
           "label": "M + I",
-          "k": null,
-          "status": "running"
+          "k": 29,
+          "status": "completed"
         },
         {
           "scenario": "morfologico_economico_urbano",
           "label": "M + U",
-          "k": null,
-          "status": "pending"
+          "k": 20,
+          "status": "completed"
         },
         {
           "scenario": "ibge_economico_urbano",
           "label": "I + U",
-          "k": null,
-          "status": "pending"
+          "k": 23,
+          "status": "completed"
         },
         {
           "scenario": "completo",
           "label": "Completo",
           "k": null,
-          "status": "pending"
+          "status": "running"
         }
       ]
     },
