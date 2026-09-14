@@ -14,6 +14,12 @@
       "permanent": true
     }
   ],
+  "rewrites": [
+    {
+      "source": "/percepcao-grade",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/data_tiles/(.*).json.gz",
