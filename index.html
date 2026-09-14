@@ -1298,7 +1298,7 @@ window.addEventListener('unhandledrejection', function(event) {
                         Framework de IA Explicável para Mapeamento de Favelas.<br><span style="font-size:0.92rem;color:var(--text-muted);">Cenario: Modelo completo. Modelo completo com variáveis candidatas selecionadas por área de estudo.</span>
                     </p>
                 </header>
-<nav class="site-nav-links" aria-label="Navegacao principal"><a class="active" href="./">Início</a><a href="guia.html">Guia de uso</a><a href="https://cefavela.ufabc.edu.br/revelando-favelas-arcabouco-metodologico-para-identificacao-e-caracterizacao-de-favelas/" target="_blank" rel="noopener noreferrer">Saiba mais</a></nav>
+<nav class="site-nav-links" aria-label="Navegacao principal"><a class="active" href="./">Início</a><a href="guia.html">Guia de uso</a><a href="/selecaovariaveis">Seleção de variáveis</a><a href="https://cefavela.ufabc.edu.br/revelando-favelas-arcabouco-metodologico-para-identificacao-e-caracterizacao-de-favelas/" target="_blank" rel="noopener noreferrer">Saiba mais</a></nav>
 
                 <div class="tab-nav">
                     <button class="tab-btn active" onclick="switchTab(1)"> Insights Analysis</button>
@@ -6128,6 +6128,7 @@ window.addEventListener('unhandledrejection', function(event) {
       nav.innerHTML =
         '<a class="active" href="./">Início</a>' +
         '<a href="guia.html">Guia de uso</a>' +
+        '<a href="/selecaovariaveis">Seleção de variáveis</a>' +
         '<a href="https://cefavela.ufabc.edu.br/revelando-favelas-arcabouco-metodologico-para-identificacao-e-caracterizacao-de-favelas/" target="_blank" rel="noopener noreferrer">Saiba mais</a>';
     }
     const title = document.querySelector('#dashboard-content header h1');
@@ -6148,8 +6149,8 @@ window.addEventListener('unhandledrejection', function(event) {
   function finalNavLabels() {
     const en = window.CURR_LANG === 'en' || (window.rfSafeStorage && window.rfSafeStorage.getItem('revelando_lang') === 'en');
     return en
-      ? ['Home', 'Model', 'Model analysis', 'Learn more', 'FCU Predictor - final result', 'User guide']
-      : ['Início', 'Modelo', 'Análise dos modelos', 'Saiba mais', 'Preditor FCU - resultado final', 'Guia de uso'];
+      ? ['Home', 'Model', 'Model analysis', 'Learn more', 'FCU Predictor - final result', 'User guide', 'Variable selection']
+      : ['Início', 'Modelo', 'Análise dos modelos', 'Saiba mais', 'Preditor FCU - resultado final', 'Guia de uso', 'Seleção de variáveis'];
   }
   function fixFinalNavigation() {
     const labels = finalNavLabels();
@@ -6158,6 +6159,7 @@ window.addEventListener('unhandledrejection', function(event) {
       nav.innerHTML =
         `<a class="active" href="./">${labels[0]}</a>` +
         `<a href="guia.html">${labels[5]}</a>` +
+        `<a href="/selecaovariaveis">${labels[6]}</a>` +
         `<a href="https://cefavela.ufabc.edu.br/revelando-favelas-arcabouco-metodologico-para-identificacao-e-caracterizacao-de-favelas/" target="_blank" rel="noopener noreferrer">${labels[3]}</a>`;
     }
     const title = document.querySelector('#dashboard-content header h1');

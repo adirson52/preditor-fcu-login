@@ -1,0 +1,1313 @@
+{
+  "updatedAt": "2026-09-14T09:46:22-03:00",
+  "timeZone": "America/Sao_Paulo",
+  "completed": 58,
+  "expected": 182,
+  "completedAreas": 6,
+  "candidates": 114,
+  "sensorsIncluded": false,
+  "summarySHA256": "e6c24660b9aaf235a206a5fffd4bc598a8cccfeef0d3f1ab47a9abca78ff5d31",
+  "rows": [
+    {
+      "id": "area_cu_aracaju",
+      "name": "Aracaju",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 11,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 16,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 5,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 29,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 16,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 27,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 41,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_baixada_santista",
+      "name": "Baixada Santista",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 14,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 15,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 6,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 31,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 22,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 25,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 40,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_belem",
+      "name": "Belém",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 14,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 18,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 3,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 34,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 20,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 27,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 43,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_belo_horizonte",
+      "name": "Belo Horizonte",
+      "completed": 6,
+      "status": "running",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 14,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 18,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 7,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 33,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 23,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 30,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_brasilia",
+      "name": "Brasília",
+      "completed": 6,
+      "status": "running",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 15,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 19,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 4,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 34,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 24,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 30,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_campinas",
+      "name": "Campinas",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 13,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 17,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 6,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 30,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 20,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 28,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 40,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_campo_grande",
+      "name": "Campo Grande",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 8,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 10,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 6,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 18,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 13,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 16,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 23,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_cuiaba",
+      "name": "Cuiabá",
+      "completed": 7,
+      "status": "completed",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 11,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 18,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 6,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": 31,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": 20,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": 29,
+          "status": "completed"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": 42,
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_curitiba",
+      "name": "Curitiba",
+      "completed": 3,
+      "status": "running",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 15,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": 16,
+          "status": "completed"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": 9,
+          "status": "completed"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "running"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_florianopolis",
+      "name": "Florianópolis",
+      "completed": 1,
+      "status": "running",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": 11,
+          "status": "completed"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "running"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_fortaleza",
+      "name": "Fortaleza",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_goiania",
+      "name": "Goiânia",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_joao_pessoa",
+      "name": "João Pessoa",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_maceio",
+      "name": "Maceió",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_manaus",
+      "name": "Manaus",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_natal",
+      "name": "Natal",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_porto_alegre",
+      "name": "Porto Alegre",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_recife",
+      "name": "Recife",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_rio_de_janeiro",
+      "name": "Rio de Janeiro",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_salvador",
+      "name": "Salvador",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_sao_jose_dos_campos",
+      "name": "São José dos Campos",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_sao_luis",
+      "name": "São Luís",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_sao_paulo",
+      "name": "São Paulo",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_sorocaba",
+      "name": "Sorocaba",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_teresina",
+      "name": "Teresina",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "area_cu_vitoria",
+      "name": "Vitória",
+      "completed": 0,
+      "status": "pending",
+      "values": [
+        {
+          "scenario": "morfologico",
+          "label": "M",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge",
+          "label": "I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "economico_urbano",
+          "label": "U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_ibge",
+          "label": "M + I",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "morfologico_economico_urbano",
+          "label": "M + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "ibge_economico_urbano",
+          "label": "I + U",
+          "k": null,
+          "status": "pending"
+        },
+        {
+          "scenario": "completo",
+          "label": "Completo",
+          "k": null,
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "validatorSHA256": "d6d18b5a67389105e8d156a9e5d5a2446b07220b775a44a15aa9423d8073c2dc"
+}
