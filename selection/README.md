@@ -88,3 +88,23 @@ Coverage includes all 182 table values/statuses, filters, CSV download, four
 tabs, the 400-cell example, the real map, map state preservation, canvas pixels,
 desktop/mobile overflow, all 15 teaching stages, equation controls and numeric
 agreement, all 114 source-backed catalogue entries, and dashboard navigation.
+
+## Moving diagrams and GIFs
+
+`lesson-motion.js` replaces the two static repetition grids with 25 identifiable
+blocks moving between group lanes (not geographic positions). The Spearman scene
+sorts two copies of the same ten synthetic training cells by their two values.
+It distinguishes these ten illustrated observations from the reported correlation
+on all 320 training cells. Rank ties use average ranks. Pause, replay, seek and
+reduced-motion preferences are supported; hidden tabs stop animation work.
+
+The downloadable GIFs are deterministic renders of those same scenes, not a
+separate illustration. To regenerate with a local test server on port 8779:
+
+```powershell
+node scripts/render-selection-gifs.cjs "E:\Banco de dados Preditor Br\06_IBGE.v3\05_documentacao\validador\gif-frames"
+python scripts/encode-selection-gifs.py "E:\Banco de dados Preditor Br\06_IBGE.v3\05_documentacao\validador\gif-frames"
+npx playwright test tests/selection.spec.js tests/selection-motion.spec.js --workers=1
+```
+
+Only the final two GIFs are published. PNG rendering frames stay outside the repo.

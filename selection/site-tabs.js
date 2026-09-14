@@ -11,6 +11,7 @@
   function show(value) {
     const name = canonical(value);
     if (name === active) return;
+    window.LessonMotion?.pauseAll();
     if (active === 'aracaju' && window.SpatialSplit) {
       const map = SpatialSplit.map;
       savedView = { center: map.getCenter(), zoom: map.getZoom() };

@@ -259,11 +259,11 @@
           description: 'Matriz de cinco rodadas por cinco grupos. Em cada linha quatro grupos treinam e um valida. Cada coluna tem exatamente uma validacao.'
         },
         {
-          title: 'Mudamos a distribui\u00e7\u00e3o dos blocos',
-          subtitle: 'As posi\u00e7\u00f5es n\u00e3o mudam. Mudam as letras atribu\u00eddas aos blocos.',
-          detail: 'Compare o bloco central destacado nos dois desenhos: ele continua no mesmo lugar, com as mesmas 16 c\u00e9lulas. Apenas seu grupo muda. Depois desse novo sorteio de grupos, fazemos novamente as cinco rodadas da etapa anterior. No projeto, a divis\u00e3o tamb\u00e9m procura equilibrar a presen\u00e7a de FCU, sem partir blocos.',
+          title: 'Os blocos trocam de grupo na nova repeti\u00e7\u00e3o',
+          subtitle: 'Agora o desenho organiza os blocos por grupo, n\u00e3o por localiza\u00e7\u00e3o.',
+          detail: 'Acompanhe B13, destacado em amarelo: ele sai da fila E e entra na fila B. As 16 c\u00e9lulas continuam juntas, dentro do mesmo bloco. Este movimento reorganiza o diagrama; n\u00e3o desloca o territ\u00f3rio real. Depois, treinamos novamente nas cinco rodadas. No projeto, a divis\u00e3o tamb\u00e9m procura equilibrar a presen\u00e7a de FCU, sem partir blocos.',
           keys: [],
-          description: 'A grade e os blocos permanecem nos mesmos lugares, mas sua atribuicao aos grupos A a E muda. Esse novo conjunto de cinco grupos sera avaliado novamente.'
+          description: 'Diagrama animado: vinte e cinco blocos identificados se movem entre cinco filas, uma por grupo. B13 passa de E para B. A localizacao geografica e as dezesseis celulas de cada bloco nao mudam.'
         },
         {
           title: 'Ao final, temos 25 avalia\u00e7\u00f5es',
@@ -295,6 +295,7 @@
       }
 
       function renderDeep() {
+        window.LessonMotion?.destroy('blocos-repeticoes');
         deep.replaceChildren();
         if (step === 9) {
           const table = document.createElement('table');
@@ -313,26 +314,7 @@
           reading.textContent = 'Rodada ' + (selectedRound + 1) + ': 320 c\u00e9lulas ensinam. As 80 do grupo ' + groups[4 - selectedRound] + ' recebem previs\u00f5es e s\u00f3 depois s\u00e3o conferidas.';
           deep.append(table, reading);
         } else if (step === 10) {
-          const compare = document.createElement('div');
-          compare.className = 'sp-comparison';
-          for (let rep = 0; rep < 2; rep++) {
-            const column = document.createElement('div');
-            column.innerHTML = '<h4>Repeti\u00e7\u00e3o ' + (rep + 1) + '</h4><p>25 blocos, nos mesmos lugares</p>';
-            const grid = document.createElement('div');
-            grid.className = 'sp-mini-blocks';
-            divisions[rep].forEach((group, b) => {
-              const item = document.createElement('span');
-              item.textContent = groups[group];
-              item.className = b === 12 ? 'sp-central-block' : '';
-              item.title = 'Bloco ' + (b + 1) + ': grupo ' + groups[group];
-              grid.append(item);
-            });
-            column.append(grid); compare.append(column);
-          }
-          const note = document.createElement('p');
-          note.className = 'sp-reading';
-          note.textContent = 'Bloco central: grupo ' + groups[divisions[0][12]] + ' na primeira divis\u00e3o; grupo ' + groups[divisions[1][12]] + ' na segunda. Nenhuma c\u00e9lula mudou de lugar.';
-          deep.append(compare, note);
+          window.LessonMotion.blocks(deep, divisions);
         } else if (step === 11) {
           const grid = document.createElement('div');
           grid.className = 'sp-evaluations';
@@ -360,6 +342,7 @@
       }
 
       function render() {
+        if (step !== 10) window.LessonMotion?.destroy('blocos-repeticoes');
         const state = stages[step];
         const matrixStage = false;
         root.querySelector('#sp-counter').textContent = 'Etapa ' + (step + 1) + ' de 12';

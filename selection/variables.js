@@ -36,11 +36,11 @@
       'A ordem inicial vem dessa import\u00e2ncia. A AP calculada no treino aparece apenas como diagn\u00f3stico e crit\u00e9rio secund\u00e1rio de ordena\u00e7\u00e3o. <strong>Ela ainda n\u00e3o \u00e9 a AP dos grupos reservados.</strong>',
       'Um modelo por coluna:<br>z = b<sub>0</sub> + f<sub>j</sub>(x<sub>j</sub>)<br><small>Import\u00e2ncia: m\u00e9dia ponderada de |f<sub>j</sub>|. N\u00e3o \u00e9 porcentagem de acerto.</small>',
       'Aqui ordenamos candidatas. Ainda n\u00e3o escolhemos o conjunto final.', 'Import\u00e2ncia unit\u00e1ria no treino desta rodada'],
-    ['Redund\u00e2ncia', 'Spearman identifica informa\u00e7\u00f5es parecidas',
-      'Duas colunas podem aumentar juntas, ou uma subir quando a outra desce. Spearman compara suas <strong>ordena\u00e7\u00f5es</strong>. Seu valor vai de \u22121 a +1; usamos o valor absoluto para detectar rela\u00e7\u00f5es fortes nas duas dire\u00e7\u00f5es.',
-      'No exemplo, cal\u00e7ada inadequada e aus\u00eancia de cal\u00e7ada foram simuladas com informa\u00e7\u00e3o muito parecida. Os pares com |\u03c1| \u2265 0,70 formam grupos conectados. Mantemos o membro mais bem colocado no ranking unit\u00e1rio de cada grupo.',
-      '|\u03c1<sub>Spearman</sub>| \u2265 0,70 \u2192 ligar as vari\u00e1veis<br><small>Um grupo pode conter liga\u00e7\u00f5es em cadeia; todos os pares n\u00e3o precisam passar de 0,70.</small>',
-      'Reduzimos redund\u00e2ncia, n\u00e3o declaramos que a outra vari\u00e1vel \u00e9 in\u00fatil em todo lugar.', 'Rela\u00e7\u00e3o no treino e representantes dos grupos'],
+    ['Redund\u00e2ncia', 'As mesmas c\u00e9lulas ficam quase na mesma ordem?',
+      'Imagine uma fila da menor para a maior propor\u00e7\u00e3o de <strong>cal\u00e7ada inadequada</strong>. Agora ordene as mesmas c\u00e9lulas pela propor\u00e7\u00e3o <strong>sem cal\u00e7ada</strong>. A anima\u00e7\u00e3o mostra essas duas filas, usando dez c\u00e9lulas do treino fict\u00edcio.',
+      'Se as c\u00e9lulas quase n\u00e3o trocam de posi\u00e7\u00e3o entre as filas, as duas vari\u00e1veis ordenam os lugares de modo parecido. <strong>Spearman mede essa semelhan\u00e7a de ordem.</strong> Mesma ordem: perto de +1. Ordem invertida: perto de \u22121, tamb\u00e9m considerada redundante pelo nosso filtro.',
+      'Spearman compara posi\u00e7\u00f5es, n\u00e3o a diferen\u00e7a entre os valores.<br><small>No treino completo: |\u03c1| \u2265 0,70 \u2192 ligar as vari\u00e1veis em um grupo. Empates recebem a posi\u00e7\u00e3o m\u00e9dia.</small>',
+      'A correla\u00e7\u00e3o detecta a repeti\u00e7\u00e3o de informa\u00e7\u00e3o. O ranking unit\u00e1rio escolhe a representante.', 'Acompanhe o mesmo ID nas duas ordena\u00e7\u00f5es'],
     ['Top-K', 'Testamos quantas representantes manter',
       'As representantes seguem a ordem do ranking. <strong>Top-1</strong> usa a primeira; <strong>Top-2</strong> usa as duas primeiras; e assim por diante. Cada quantidade K recebe seu pr\u00f3prio ajuste EBM.',
       'Os nomes podem mudar entre folds, porque ranking e Spearman s\u00e3o refeitos em cada treino. O que comparamos ao longo das rodadas \u00e9 a quantidade K dentro desse procedimento.',
@@ -170,6 +170,7 @@
     updateEquation();
   }
   function renderVisual() {
+    window.LessonMotion?.destroy('spearman-celulas');
     const width = visual.clientWidth || 600;
     const model = data.first.models[String(state.k)];
     if (state.step === 0) {
@@ -182,13 +183,9 @@
       const max = Math.max(...data.first.ranking.map(row => row.ebm_unit_importance));
       visual.innerHTML = '<div class="rank-bars">' + data.first.ranking.map(row => '<div class="rank-bar"><span>' + row.rank_ebm_unitario + '. ' + esc(label(row.feature)) + '</span><span class="rank-track"><span class="rank-fill" style="width:' + row.ebm_unit_importance / max * 100 + '%"></span></span><output>' + f(row.ebm_unit_importance) + '</output></div>').join('') + '</div><p class="example-footnote">Barras: import\u00e2ncia dos EBMs unit\u00e1rios, medida no treino. N\u00e3o s\u00e3o APs nem pesos fixos de uma regress\u00e3o linear.</p>';
     } else if (state.step === 4) {
-      const pair = data.first.pairs[0];
-      const a = data.features.findIndex(feature => feature.id === pair.feature_a), b = data.features.findIndex(feature => feature.id === pair.feature_b);
-      const w = Math.max(250, width), h = 210;
-      let dots = data.cells.filter(cell => data.divisions[0][cell.block] !== 4).map(cell => '<circle cx="' + (40 + cell.x[a] * (w - 60)) + '" cy="' + (175 - cell.x[b] * 155) + '" r="2" fill="#2a8b7c" opacity=".5"/>').join('');
-      dots += '<path d="M40 18 V175 H' + (w - 20) + '" stroke="#a9bec8" fill="none"/><text x="40" y="200" class="chart-axis">X: cal\u00e7ada inadequada (0\u20131)</text><text x="40" y="12" class="chart-axis">Y: sem cal\u00e7ada (0\u20131)</text>';
+      window.LessonMotion.spearman(visual, data);
       const ids = [...new Set(data.first.clusters.map(row => row.cluster_id))];
-      visual.innerHTML = svg(w, h, dots, 'Relacao positiva entre duas variaveis de calcada, no treino sintetico.') + '<p class="example-footnote">\u03c1 = <strong>' + f(pair.spearman_rho) + '</strong>. Cada ponto representa uma c\u00e9lula do treino.</p><div class="cluster-list">' + ids.map(id => '<div class="cluster"><strong>Grupo de redund\u00e2ncia ' + id + '</strong>' + data.first.clusters.filter(row => row.cluster_id === id).map(row => '<span class="' + (row.winner ? 'winner' : '') + '">' + esc(label(row.feature)) + (row.winner ? ' \u2192 representante' : ' \u2192 sai deste grupo') + '</span>').join('') + '</div>').join('') + '</div>';
+      visual.insertAdjacentHTML('beforeend', '<details class="selection-method"><summary>As quatro representantes que seguem para Top-K</summary><p>Grupos conectados: podem existir liga\u00e7\u00f5es em cadeia, sem que todos os pares ultrapassem 0,70.</p><div class="cluster-list">' + ids.map(id => '<div class="cluster"><strong>Grupo ' + id + '</strong>' + data.first.clusters.filter(row => row.cluster_id === id).map(row => '<span class="' + (row.winner ? 'winner' : '') + '">' + esc(label(row.feature)) + (row.winner ? ' \u2192 representante' : ' \u2192 sai deste grupo') + '</span>').join('') + '</div>').join('') + '</div></details>');
     } else if (state.step === 5) {
       visual.innerHTML = kControl() + '<div class="selected-variables">' + data.first.winners.map((id, i) => '<div class="selected-variable' + (i >= state.k ? ' inactive' : '') + '">' + (i + 1) + '. ' + esc(label(id)) + '<br><small>' + (i < state.k ? 'Entra neste Top-K' : 'Fora deste Top-K') + '</small></div>').join('') + '</div>';
     } else if (state.step === 6) {
@@ -231,7 +228,14 @@
   previous.addEventListener('click', () => { if (state.step > 0) { state.step--; render(); } });
   next.addEventListener('click', () => { if (state.step < steps.length - 1) { state.step++; render(); } });
   let resizeFrame;
-  addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(render); });
+  addEventListener('resize', () => {
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      const movie = window.LessonMotion?.get('spearman-celulas');
+      if (state.step === 4 && movie) movie.resize();
+      else render();
+    });
+  });
   resetCell(state.cell);
   window.IbgeExample = { render, state, prediction, contribution, data, real };
 })();

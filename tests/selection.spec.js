@@ -129,8 +129,8 @@ for (const width of [1366, 390, 320]) {
     await page.locator('.sp-round-table button').nth(2).click();
     await expect(page.locator('.sp-reading')).toContainText('grupo C');
     await page.locator('#sp-next').click();
-    await expect(page.locator('.sp-mini-blocks')).toHaveCount(2);
-    await expect(page.locator('.sp-mini-blocks span')).toHaveCount(50);
+    await expect(page.locator('[data-moving-block]')).toHaveCount(25);
+    await expect(page.locator('[data-movie-cell]')).toHaveCount(400);
     await page.locator('#sp-next').click();
     await expect(page.locator('.sp-evaluations button')).toHaveCount(25);
     await page.locator('.sp-evaluations button').last().click();
