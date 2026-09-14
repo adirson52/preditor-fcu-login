@@ -203,6 +203,8 @@ def main():
     assert len(soup.select('[data-variable]')) == 114
     assert not soup.find("iframe")
     assert not soup.find("script", src=True)
+    telemetry = soup.new_tag("script", src="/telemetry.js?v=20260914.1", defer=True)
+    soup.body.append(telemetry)
     assert soup.find(id="map-data").string
     page = str(soup)
     assert "file:///" not in page

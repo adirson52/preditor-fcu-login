@@ -193,6 +193,7 @@
 
   function pageType() {
     const path = window.location.pathname.toLowerCase();
+    if (path.includes('selecaovariaveis')) return 'selecao_' + (location.hash.slice(1) || 'exemplo-ilustrativo');
     if (path.includes('guia')) return 'guia';
     if (path.includes('3d')) return '3d';
     if (path.includes('privacidade')) return 'privacidade';
@@ -868,6 +869,14 @@
       return preferenceGet(LOCATION_PREFERENCE_KEY) || 'unset';
     }
   });
+
+  if (location.pathname.includes('selecaovariaveis')) {
+    let previousPage = pageType();
+    const trackSection = () => { const next = pageType(); if(next !== previousPage) { previousPage = next; send('page_view', {section: next}); } };
+    document.addEventListener('click', () => setTimeout(trackSection, 0));
+    window.addEventListener('hashchange', trackSection);
+    window.addEventListener('popstate', trackSection);
+  }
 
   scheduleLocationFlow();
 
