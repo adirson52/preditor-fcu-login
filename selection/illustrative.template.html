@@ -1,0 +1,424 @@
+<div id="split-espacial-passos">
+<style>
+    #split-espacial-passos { color: var(--foreground); letter-spacing: 0; }
+    #split-espacial-passos .sp-navigation {
+      display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: 12px; margin-bottom: 18px;
+    }
+    #split-espacial-passos .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #split-espacial-passos .sp-heading { display: grid; gap: 7px; margin-bottom: 18px; }
+    #split-espacial-passos h3 { margin: 0; }
+    #split-espacial-passos figure { margin: 0; min-width: 0; }
+    #split-espacial-passos .sp-caption { margin-bottom: 12px; }
+    #split-espacial-passos .sp-scene { width: 100%; max-width: 440px; margin: 0 auto; }
+    #split-espacial-passos .sp-territory {
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: 0; aspect-ratio: 1;
+    }
+    #split-espacial-passos .sp-territory.grouped { gap: 6px; }
+    #split-espacial-passos .sp-block {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 1px;
+      padding: 1px; background: var(--border); position: relative;
+      min-width: 0; min-height: 0;
+    }
+    #split-espacial-passos .sp-cell {
+      background: var(--background); display: grid; place-items: center;
+      min-width: 0; min-height: 0;
+    }
+    #split-espacial-passos .sp-cell.fcu::after {
+      content: ''; display: block; width: 4px; height: 4px;
+      border-radius: 50%; background: var(--foreground);
+    }
+    #split-espacial-passos .sp-block.hidden-answers .sp-cell::after { visibility: hidden; }
+    #split-espacial-passos .sp-block.train .sp-cell {
+      background: color-mix(in srgb, var(--viz-series-1) 18%, var(--background));
+    }
+    #split-espacial-passos .sp-block.reserved .sp-cell {
+      background: color-mix(in srgb, var(--viz-series-2) 45%, var(--background));
+    }
+    #split-espacial-passos .sp-cell.highlight {
+      background: var(--viz-series-1); outline: 2px solid var(--foreground); z-index: 1;
+    }
+    #split-espacial-passos .sp-label {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      pointer-events: none;
+    }
+    #split-espacial-passos .sp-label span {
+      background: var(--background); color: var(--foreground);
+      padding: 1px 4px; font-weight: 500;
+    }
+    #split-espacial-passos .sp-label:empty { display: none; }
+    #split-espacial-passos .sp-legend {
+      display: flex; flex-wrap: wrap; gap: 10px 20px;
+      margin: 16px 0 12px; min-height: 28px; align-items: center;
+    }
+    #split-espacial-passos .sp-key { display: inline-flex; align-items: center; gap: 8px; }
+    #split-espacial-passos .sp-swatch {
+      width: 21px; height: 21px; display: inline-grid; place-items: center;
+      font-weight: 500; color: var(--foreground); flex: 0 0 21px;
+    }
+    #split-espacial-passos .sp-swatch.train {
+      background: color-mix(in srgb, var(--viz-series-1) 18%, transparent);
+    }
+    #split-espacial-passos .sp-swatch.reserved {
+      background: color-mix(in srgb, var(--viz-series-2) 45%, transparent);
+    }
+    #split-espacial-passos .sp-swatch.dot::after {
+      content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--foreground);
+    }
+    #split-espacial-passos .sp-detail { margin-top: 6px; }
+    #split-espacial-passos .sp-matrix {
+      display: grid; grid-template-columns: minmax(70px, 1.6fr) repeat(5, minmax(0, 1fr));
+      gap: 6px; align-items: stretch; width: 100%;
+    }
+    #split-espacial-passos .sp-matrix-cell {
+      display: grid; place-items: center; min-height: 46px; color: var(--foreground);
+    }
+    #split-espacial-passos .sp-matrix-cell.train {
+      background: color-mix(in srgb, var(--viz-series-1) 18%, transparent);
+    }
+    #split-espacial-passos .sp-matrix-cell.reserved {
+      background: color-mix(in srgb, var(--viz-series-2) 45%, transparent);
+    }
+    #split-espacial-passos .sp-matrix-cell.number {
+      background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    }
+    #split-espacial-passos .sp-matrix-row { display: grid; align-items: center; overflow-wrap: anywhere; }
+    #split-espacial-passos .sp-block-focus { outline: 3px solid var(--blue); outline-offset: 2px; z-index: 1; }
+    #split-espacial-passos .sp-scene.sp-show-scale { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) 180px; align-items: center; gap: 24px; }
+    #split-espacial-passos .sp-block-detail { min-width: 0; font-size: 12px; }
+    #split-espacial-passos .sp-block-detail h4 { font-size: 14px; margin: 0 0 4px; }
+    #split-espacial-passos .sp-block-detail p { margin: 4px 0; }
+    #split-espacial-passos .sp-block-count { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 1px; background: var(--border); aspect-ratio: 1; outline: 3px solid var(--blue); margin: 12px 3px; }
+    #split-espacial-passos .sp-count-cell { display: grid; place-items: center; min-width: 0; min-height: 0; background: var(--background); position: relative; font-variant-numeric: tabular-nums; }
+    #split-espacial-passos .sp-count-cell.fcu::after { content: ''; width: 4px; height: 4px; background: var(--foreground); border-radius: 50%; position: absolute; top: 5px; right: 5px; }
+    @media(max-width:1100px) {
+      #split-espacial-passos .sp-scene.sp-show-scale { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+      #split-espacial-passos .sp-show-scale .sp-territory { width: 100%; max-width: 440px; }
+      #split-espacial-passos .sp-block-detail { width: 180px; }
+    }
+    #split-espacial-passos [hidden] { display: none !important; }
+  </style>
+<div class="sp-navigation">
+<output aria-live="polite" class="tabular-nums" id="sp-counter">Etapa 1 de 12</output>
+<div class="sp-actions">
+<button class="btn btn-ghost" disabled="" id="sp-previous" type="button">
+<i aria-hidden="true" data-lucide="chevron-left"></i>Voltar
+      </button>
+<button class="btn" id="sp-next" type="button">
+        Avançar<i aria-hidden="true" data-lucide="chevron-right"></i>
+</button>
+</div>
+</div>
+<div aria-live="polite" class="sp-heading">
+<h3 id="sp-title">1. O território vira pequenos quadrados</h3>
+<div id="sp-subtitle">Uma célula destacada: 50 × 50 metros</div>
+</div>
+<figure>
+<figcaption class="sp-caption text-small" id="sp-caption">Exemplo fictício: 400 células</figcaption>
+<div class="sp-scene" id="sp-scene">
+<div aria-label="Grade ilustrativa de quatrocentas celulas. Uma celula esta destacada." class="sp-territory" id="sp-territory" role="img"></div>
+<div class="sp-matrix text-small tabular-nums" hidden="" id="sp-matrix" role="img"></div>
+<div id="sp-deep" class="sp-deep" hidden></div>
+<div class="sp-block-detail" id="sp-block-detail" hidden>
+  <h4>Um bloco ampliado</h4>
+  <p>200 &times; 200 metros</p>
+  <div class="sp-block-count" id="sp-block-count" role="img" aria-label="O bloco central ampliado, com 16 celulas numeradas: quatro linhas e quatro colunas. Cada celula mede 50 por 50 metros."></div>
+  <p><strong>4 &times; 4 = 16 c&eacute;lulas</strong></p>
+  <p>Cada c&eacute;lula: 50 &times; 50 m</p>
+</div>
+</div>
+<div class="sp-legend text-small" id="sp-legend"></div>
+<div aria-live="polite" class="sp-detail" id="sp-detail"></div>
+</figure>
+<script>
+    (function () {
+      const root = document.getElementById('split-espacial-passos');
+      if (!root) return;
+      const territory = root.querySelector('#sp-territory');
+      const matrix = root.querySelector('#sp-matrix');
+      const scene = root.querySelector('#sp-scene');
+      const blockDetail = root.querySelector('#sp-block-detail');
+      const blockCount = root.querySelector('#sp-block-count');
+      const legend = root.querySelector('#sp-legend');
+      const previous = root.querySelector('#sp-previous');
+      const next = root.querySelector('#sp-next');
+      const groups = ['A', 'B', 'C', 'D', 'E'];
+      const blocks = [];
+      let step = 0;
+
+      // Fictional assignments illustrate grouping without claiming to be actual regional folds.
+      function assignment(seed) {
+        const labels = Array.from({ length: 25 }, (_, i) => i % 5);
+        for (let i = labels.length - 1; i > 0; i--) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          const j = seed % (i + 1);
+          [labels[i], labels[j]] = [labels[j], labels[i]];
+        }
+        return labels;
+      }
+      const divisions = [713, 742, 771, 800, 829].map(assignment);
+      const deep = root.querySelector('#sp-deep');
+      let selectedRound = 0, selectedEvaluation = 0;
+      for (let b = 0; b < 25; b++) {
+        const block = document.createElement('div');
+        block.className = 'sp-block';
+        block.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < 16; i++) {
+          const cell = document.createElement('span');
+          cell.className = 'sp-cell';
+          if (((b * 13 + i * 7) % 19) < 4) cell.classList.add('fcu');
+          block.appendChild(cell);
+        }
+        const label = document.createElement('div');
+        label.className = 'sp-label text-small';
+        block.appendChild(label);
+        territory.appendChild(block);
+        blocks.push({ block, label });
+      }
+
+      // Enlarge the central block without adding cells to the illustrative territory.
+      Array.from(blocks[12].block.querySelectorAll('.sp-cell')).forEach((cell, i) => {
+        const number = document.createElement('span');
+        number.className = 'sp-count-cell' + (cell.classList.contains('fcu') ? ' fcu' : '');
+        number.textContent = i + 1;
+        blockCount.appendChild(number);
+      });
+
+      const stages = [
+        {
+          title: 'O territ\u00f3rio vira pequenos quadrados',
+          subtitle: 'Uma c\u00e9lula destacada: 50 \u00d7 50 metros',
+          detail: 'Cada c\u00e9lula tem seus dados: edif\u00edcios, renda, vias e outras vari\u00e1veis.',
+          keys: [],
+          description: 'Grade ficticia com quatrocentas celulas de cinquenta metros. Uma celula esta destacada.'
+        },
+        {
+          title: 'J\u00e1 temos uma resposta de refer\u00eancia',
+          subtitle: 'Cadastro FCU original: o nosso gabarito',
+          detail: 'Ponto: FCU no cadastro. Sem ponto: fora da FCU no cadastro.',
+          keys: [['dot', '', 'FCU no cadastro']],
+          description: 'Pontos marcam celulas cadastradas como FCU. Celulas sem ponto estao fora da FCU original. Este e um exemplo ficticio, nao o cadastro real.'
+        },
+        {
+          title: 'Juntamos as c\u00e9lulas vizinhas em blocos',
+          subtitle: '25 blocos no territ\u00f3rio; 16 c\u00e9lulas dentro de cada bloco',
+          detail: 'O contorno azul destaca um dos 25 blocos. Dentro dele: 4 linhas \u00d7 4 colunas = 16 c\u00e9lulas. Na base real, um bloco pode ter menos c\u00e9lulas presentes: por isso, at\u00e9 16.',
+          keys: [['dot', '', 'FCU no cadastro']],
+          description: 'As mesmas celulas agora aparecem agrupadas em vinte e cinco blocos. Cada bloco do exemplo tem quatro por quatro celulas. Os espacos apenas destacam os limites dos blocos; nao representam uma faixa de afastamento.'
+        },
+        {
+          title: 'Distribu\u00edmos os blocos em cinco grupos',
+          subtitle: 'Grupos A, B, C, D e E',
+          detail: 'Grupos espalhados pelo territ\u00f3rio; n\u00e3o s\u00e3o cinco bairros.',
+          keys: [],
+          description: 'Cada bloco recebe uma letra de A a E. Todas as celulas do bloco recebem o mesmo grupo. As letras estao espalhadas, e nao representam bairros contiguos.'
+        },
+        {
+          title: 'Separamos o grupo E para avaliar',
+          subtitle: 'A, B, C e D: treino | E: reservado',
+          detail: 'Gabarito do grupo E: escondido do modelo nesta rodada.',
+          keys: [['train', 'T', 'Treino'], ['reserved', '?', 'Reservado']],
+          description: 'Vinte blocos estao no treino. Cinco blocos do grupo E estao reservados com o gabarito oculto. Nenhum bloco e dividido entre as duas partes.'
+        },
+        {
+          title: 'O modelo aprende com os outros quatro grupos',
+          subtitle: 'Treino: vari\u00e1veis + respostas conhecidas',
+          detail: '320 c\u00e9lulas no treino do exemplo; grupo E continua separado.',
+          keys: [['train', 'T', 'Aprendizado'], ['reserved', '?', 'Fora do treino']],
+          description: 'O modelo aprende usando os dados e o cadastro das trezentas e vinte celulas dos grupos A, B, C e D. As oitenta celulas de E ficam fora desse treinamento.'
+        },
+        {
+          title: 'Ele faz previs\u00f5es para o grupo E',
+          subtitle: 'Previs\u00e3o: vari\u00e1veis dispon\u00edveis, gabarito escondido',
+          detail: '80 c\u00e9lulas reservadas recebem estimativas, sem usar suas respostas.',
+          keys: [['train', 'T', 'Treino encerrado'], ['reserved', 'P', 'Previs\u00f5es']],
+          description: 'O modelo treinado produz uma estimativa para cada celula de E usando suas variaveis. P indica previsoes, nao acertos. O gabarito de E ainda nao foi mostrado ao modelo.'
+        },
+        {
+          title: 'Comparamos as previs\u00f5es com o gabarito',
+          subtitle: 'Valida\u00e7\u00e3o da primeira rodada',
+          detail: 'AP: avalia se as FCUs cadastradas ficaram no topo das estimativas.',
+          keys: [['train', 'T', 'Treino'], ['reserved', 'V', 'Valida\u00e7\u00e3o'], ['dot', '', 'FCU no cadastro']],
+          description: 'As respostas do grupo E agora sao usadas para avaliar as previsoes, e nao para treinar esse modelo. Nenhum valor de desempenho e inventado nesta ilustracao.'
+        },
+        {
+          title: 'Trocamos o grupo reservado e treinamos de novo',
+          subtitle: 'Segunda rodada: D reservado; A, B, C e E no treino',
+          detail: 'Novo treinamento do zero. N\u00e3o continuamos o modelo da rodada anterior.',
+          keys: [['train', 'T', 'Novo treino'], ['reserved', '?', 'Novo grupo reservado']],
+          description: 'O grupo D fica reservado, enquanto E volta ao treino junto de A, B e C. Um novo modelo e treinado do zero, sem aproveitar o treinamento anterior.'
+        },
+        {
+          title: 'Todos os cinco grupos passam pela avalia\u00e7\u00e3o',
+          subtitle: 'Uma repeti\u00e7\u00e3o = percorrer as cinco linhas abaixo',
+          detail: 'Leia uma linha de cada vez. Na rodada 1, A + B + C + D ensinam e E faz a prova. Na rodada 2, E volta ao treino e D faz a prova. Cada linha exige um novo treinamento do zero. Ao terminar as cinco, todas as 400 c\u00e9lulas fizeram a prova uma vez, sempre fora do treino daquele modelo.',
+          keys: [['train', 'T', 'Treino'], ['reserved', 'V', 'Valida\u00e7\u00e3o']],
+          description: 'Matriz de cinco rodadas por cinco grupos. Em cada linha quatro grupos treinam e um valida. Cada coluna tem exatamente uma validacao.'
+        },
+        {
+          title: 'Mudamos a distribui\u00e7\u00e3o dos blocos',
+          subtitle: 'As posi\u00e7\u00f5es n\u00e3o mudam. Mudam as letras atribu\u00eddas aos blocos.',
+          detail: 'Compare o bloco central destacado nos dois desenhos: ele continua no mesmo lugar, com as mesmas 16 c\u00e9lulas. Apenas seu grupo muda. Depois desse novo sorteio de grupos, fazemos novamente as cinco rodadas da etapa anterior. No projeto, a divis\u00e3o tamb\u00e9m procura equilibrar a presen\u00e7a de FCU, sem partir blocos.',
+          keys: [],
+          description: 'A grade e os blocos permanecem nos mesmos lugares, mas sua atribuicao aos grupos A a E muda. Esse novo conjunto de cinco grupos sera avaliado novamente.'
+        },
+        {
+          title: 'Ao final, temos 25 avalia\u00e7\u00f5es',
+          subtitle: 'Cinco divis\u00f5es do territ\u00f3rio \u00d7 cinco grupos reservados = 25 avalia\u00e7\u00f5es por configura\u00e7\u00e3o',
+          detail: 'Cada quadrinho representa treinar um novo modelo e conferir um grupo reservado. Para uma quantidade K de vari\u00e1veis, juntamos as 25 APs e calculamos a m\u00e9dia. Repetimos a compara\u00e7\u00e3o para outras quantidades K. N\u00e3o somamos os 25 modelos em uma equa\u00e7\u00e3o. Como essas notas ajudam a escolher vari\u00e1veis, elas n\u00e3o s\u00e3o uma prova final independente.',
+          keys: [],
+          description: 'Vinte e cinco avaliacoes, organizadas em cinco repeticoes de cinco rodadas. Os numeros identificam as avaliacoes; nao sao notas ou valores de AP.'
+        }
+      ];
+
+      function matrixCell(text, className) {
+        const cell = document.createElement('div');
+        cell.className = className;
+        cell.textContent = text;
+        matrix.appendChild(cell);
+      }
+
+      function renderMatrix(isFinal) {
+        matrix.replaceChildren();
+        matrixCell('', 'sp-matrix-cell');
+        groups.forEach((group, i) => matrixCell(isFinal ? String(i + 1) : group, 'sp-matrix-cell'));
+        for (let r = 0; r < 5; r++) {
+          matrixCell((isFinal ? 'Repeti\u00e7\u00e3o ' : 'Rodada ') + (r + 1), 'sp-matrix-row');
+          for (let c = 0; c < 5; c++) {
+            if (isFinal) matrixCell(String(r * 5 + c + 1), 'sp-matrix-cell number');
+            else matrixCell(c === 4 - r ? 'V' : 'T', 'sp-matrix-cell ' + (c === 4 - r ? 'reserved' : 'train'));
+          }
+        }
+      }
+
+      function renderDeep() {
+        deep.replaceChildren();
+        if (step === 9) {
+          const table = document.createElement('table');
+          table.className = 'sp-round-table';
+          table.innerHTML = '<thead><tr><th>Rodada</th><th>Ensinam o modelo</th><th>Faz a prova</th></tr></thead><tbody></tbody>';
+          for (let r = 0; r < 5; r++) {
+            const reserved = 4 - r;
+            const tr = document.createElement('tr');
+            tr.className = r === selectedRound ? 'active-round' : '';
+            tr.innerHTML = '<th><button type="button" aria-pressed="' + (r === selectedRound) + '">Rodada ' + (r + 1) + '</button></th><td class="train-text">' + groups.filter((_, i) => i !== reserved).join(' + ') + '</td><td class="validation-text">' + groups[reserved] + '</td>';
+            tr.querySelector('button').addEventListener('click', () => { selectedRound = r; render(); });
+            table.tBodies[0].append(tr);
+          }
+          const reading = document.createElement('p');
+          reading.className = 'sp-reading';
+          reading.textContent = 'Rodada ' + (selectedRound + 1) + ': 320 c\u00e9lulas ensinam. As 80 do grupo ' + groups[4 - selectedRound] + ' recebem previs\u00f5es e s\u00f3 depois s\u00e3o conferidas.';
+          deep.append(table, reading);
+        } else if (step === 10) {
+          const compare = document.createElement('div');
+          compare.className = 'sp-comparison';
+          for (let rep = 0; rep < 2; rep++) {
+            const column = document.createElement('div');
+            column.innerHTML = '<h4>Repeti\u00e7\u00e3o ' + (rep + 1) + '</h4><p>25 blocos, nos mesmos lugares</p>';
+            const grid = document.createElement('div');
+            grid.className = 'sp-mini-blocks';
+            divisions[rep].forEach((group, b) => {
+              const item = document.createElement('span');
+              item.textContent = groups[group];
+              item.className = b === 12 ? 'sp-central-block' : '';
+              item.title = 'Bloco ' + (b + 1) + ': grupo ' + groups[group];
+              grid.append(item);
+            });
+            column.append(grid); compare.append(column);
+          }
+          const note = document.createElement('p');
+          note.className = 'sp-reading';
+          note.textContent = 'Bloco central: grupo ' + groups[divisions[0][12]] + ' na primeira divis\u00e3o; grupo ' + groups[divisions[1][12]] + ' na segunda. Nenhuma c\u00e9lula mudou de lugar.';
+          deep.append(compare, note);
+        } else if (step === 11) {
+          const grid = document.createElement('div');
+          grid.className = 'sp-evaluations';
+          for (let rep = 0; rep < 5; rep++) {
+            const label = document.createElement('strong');
+            label.textContent = 'Repeti\u00e7\u00e3o ' + (rep + 1); grid.append(label);
+            for (let fold = 0; fold < 5; fold++) {
+              const index = rep * 5 + fold;
+              const button = document.createElement('button');
+              button.type = 'button'; button.textContent = 'Rod. ' + (fold + 1);
+              button.setAttribute('aria-label', 'Repeti\u00e7\u00e3o ' + (rep + 1) + ', rodada ' + (fold + 1));
+              button.setAttribute('aria-pressed', index === selectedEvaluation);
+              button.addEventListener('click', () => { selectedEvaluation = index; renderDeep(); });
+              grid.append(button);
+            }
+          }
+          const reading = document.createElement('p');
+          reading.className = 'sp-reading';
+          reading.textContent = 'Avalia\u00e7\u00e3o selecionada: divis\u00e3o ' + (Math.floor(selectedEvaluation / 5) + 1) + ', rodada ' + (selectedEvaluation % 5 + 1) + '. Grupo ' + groups[4 - selectedEvaluation % 5] + ' reservado; os outros quatro treinam um modelo novo. Dessa confer\u00eancia sai uma AP.';
+          const total = document.createElement('p');
+          total.className = 'sp-total';
+          total.textContent = '5 repeti\u00e7\u00f5es \u00d7 5 rodadas = 25 APs para cada K';
+          deep.append(grid, reading, total);
+        }
+      }
+
+      function render() {
+        const state = stages[step];
+        const matrixStage = false;
+        root.querySelector('#sp-counter').textContent = 'Etapa ' + (step + 1) + ' de 12';
+        root.querySelector('#sp-title').textContent = (step + 1) + '. ' + state.title;
+        root.querySelector('#sp-subtitle').textContent = state.subtitle;
+        root.querySelector('#sp-detail').textContent = state.detail;
+        root.querySelector('#sp-caption').textContent = step === 11
+          ? 'Quantidade real de avalia\u00e7\u00f5es por configura\u00e7\u00e3o; n\u00fameros n\u00e3o s\u00e3o notas'
+          : (step === 9 ? 'Revezamento dos cinco grupos do exemplo' : step >= 2 ? 'Exemplo fict\u00edcio: 5 \u00d7 5 = 25 blocos; 25 \u00d7 16 = 400 c\u00e9lulas' : 'Exemplo fict\u00edcio: mesmas 400 c\u00e9lulas');
+        scene.classList.toggle('sp-show-scale', step === 2);
+        blockDetail.hidden = step !== 2;
+        territory.hidden = step >= 10;
+        matrix.hidden = true;
+        deep.hidden = step < 9;
+        scene.classList.toggle('sp-deep-stage', step >= 9);
+        if (step >= 9) renderDeep();
+        territory.classList.toggle('grouped', step >= 2);
+        (matrixStage ? matrix : territory).setAttribute('aria-label', state.description);
+        if (matrixStage) renderMatrix(step === 11);
+        const split = divisions[step === 10 ? 1 : 0];
+        blocks.forEach(({ block, label }, b) => {
+          const isRound = step >= 4 && step <= 9;
+          const reserved = split[b] === (step === 9 ? 4 - selectedRound : step === 8 ? 3 : 4);
+          const showAnswers = step === 1 || step === 2 || (isRound && (!reserved || step === 7));
+          block.classList.toggle('sp-block-focus', step === 2 && b === 12);
+          block.classList.toggle('train', isRound && !reserved);
+          block.classList.toggle('reserved', isRound && reserved);
+          block.classList.toggle('hidden-answers', !showAnswers);
+          block.children[0].classList.toggle('highlight', step === 0 && b === 12);
+          label.replaceChildren();
+          let text = '';
+          if (step === 3 || step === 10) text = groups[split[b]];
+          else if (isRound) text = step === 9 ? groups[split[b]] : reserved ? (step === 6 ? 'P' : step === 7 ? 'V' : '?') : 'T';
+          if (text) {
+            const value = document.createElement('span');
+            value.textContent = text;
+            label.appendChild(value);
+          }
+        });
+        legend.replaceChildren();
+        state.keys.forEach(([kind, mark, text]) => {
+          const key = document.createElement('span');
+          key.className = 'sp-key';
+          const swatch = document.createElement('span');
+          swatch.className = 'sp-swatch ' + kind;
+          swatch.textContent = mark;
+          swatch.setAttribute('aria-hidden', 'true');
+          const label = document.createElement('span');
+          label.textContent = text;
+          key.append(swatch, label);
+          legend.appendChild(key);
+        });
+        legend.hidden = state.keys.length === 0;
+        previous.disabled = step === 0;
+        next.disabled = step === stages.length - 1;
+      }
+      previous.addEventListener('click', () => { if (step > 0) { step--; render(); } });
+      next.addEventListener('click', () => { if (step < stages.length - 1) { step++; render(); } });
+      render();
+    })();
+  </script>
+</div>
