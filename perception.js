@@ -4,7 +4,7 @@
   const CLASS_KEYS=['atencao_prioritaria','atencao','demais_areas','outro'];
   const COLOR={atencao_prioritaria:'#d7191c',atencao:'#f28e2b',demais_areas:'#2a9d5b',outro:'#6b7280',expansao_urbana:'#7c3aed',consolidacao:'#7c3aed',vulnerabilidade:'#7c3aed',infraestrutura:'#7c3aed',pressao_ambiental:'#7c3aed'};
   const ACTION={confirm:'Confirmou o modelo',reclassify:'Viu diferente',free:'Desenho livre'};
-  const LAB_MODE=location.pathname.replace(/\/$/,'')==='/percepcao-grade'||new URLSearchParams(location.search).get('percepcao')==='grade';
+  const LAB_MODE=false;
   if(LAB_MODE)document.body.classList.add('fcu-grid-lab');
   let map,db,layers=L.layerGroup(),editHandles=L.layerGroup(),gridLayer=L.layerGroup(),items=[],layerById=new Map(),gridCells=new Map(),drawing=false,dragging=false,geometryEditing=false,gridMode=false,points=[],originalPoints=[],selectedVertex=-1,drawingZoom=13,draftLayer,draft,editingId,editingRecord,lastCell='';
   const filters={visible:true,classes:new Set(Object.keys(LABEL)),actions:new Set(Object.keys(ACTION))};

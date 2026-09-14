@@ -43,12 +43,10 @@ test('ações de percepção exigem autenticação', async ({ page }) => {
   await expect(page.locator('#fcu-auth-backdrop')).toHaveClass(/is-open/);
 });
 
-test('rota experimental oferece seleção por grade e modos do mapa', async ({ page }) => {
+test('rota experimental desativada mantém a experiência principal', async ({ page }) => {
   await page.goto('/?percepcao=grade');
   await page.waitForSelector('.fcu-perception-button');
   await page.locator('.fcu-perception-button').click({ force: true });
-  await expect(page.locator('.fcu-grid-picker')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Adicionar', exact: false })).toBeVisible();
-  await expect(page.locator('.fcu-map-mode-control')).toContainText('Satélite');
-  await expect(page.locator('.fcu-map-mode-control')).toContainText('3D');
+  await expect(page.locator('.fcu-grid-picker')).toHaveCount(0);
+  await expect(page.locator('.fcu-perception-panel')).toBeVisible();
 });
