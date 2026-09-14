@@ -1,0 +1,986 @@
+[
+  {
+    "code": "morfologico",
+    "letter": "M",
+    "name": "Morfologia",
+    "count": 58,
+    "description": "Edificacoes, vias e quadras, topografia e ocupacao urbana.",
+    "blocks": [
+      {
+        "name": "Edificacoes GBA",
+        "variables": [
+          {
+            "id": "gba_num_edif_2019",
+            "label": "gba_num_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "gba_num_edif_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_area_constr_2019",
+            "label": "p_gba_area_constr_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_area_constr_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_area_edif_2019",
+            "label": "m_gba_area_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_area_edif_2019",
+            "static": true
+          },
+          {
+            "id": "med_gba_area_edif_2019",
+            "label": "med_gba_area_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "med_gba_area_edif_2019",
+            "static": true
+          },
+          {
+            "id": "p10_gba_area_edif_2019",
+            "label": "p10_gba_area_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p10_gba_area_edif_2019",
+            "static": true
+          },
+          {
+            "id": "p90_gba_area_edif_2019",
+            "label": "p90_gba_area_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p90_gba_area_edif_2019",
+            "static": true
+          },
+          {
+            "id": "cv_gba_area_edif_2019",
+            "label": "cv_gba_area_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "cv_gba_area_edif_2019",
+            "static": true
+          },
+          {
+            "id": "gba_num_edif_peq_p10_2019",
+            "label": "gba_num_edif_peq_p10_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "gba_num_edif_peq_p10_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_edif_peq_p10_2019",
+            "label": "p_gba_edif_peq_p10_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_edif_peq_p10_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_altura_2019",
+            "label": "m_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "p10_gba_altura_2019",
+            "label": "p10_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p10_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "p90_gba_altura_2019",
+            "label": "p90_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p90_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "std_gba_altura_2019",
+            "label": "std_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "std_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "cv_gba_altura_2019",
+            "label": "cv_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "cv_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "iqr_gba_altura_2019",
+            "label": "iqr_gba_altura_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "iqr_gba_altura_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_altura_baixa_6m_2019",
+            "label": "p_gba_altura_baixa_6m_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_altura_baixa_6m_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_altura_alta_12m_2019",
+            "label": "p_gba_altura_alta_12m_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_altura_alta_12m_2019",
+            "static": true
+          },
+          {
+            "id": "gba_volume_m3_2019",
+            "label": "gba_volume_m3_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "gba_volume_m3_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_volume_edif_2019",
+            "label": "m_gba_volume_edif_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_volume_edif_2019",
+            "static": true
+          },
+          {
+            "id": "gba_area_piso_proxy_m2_2019",
+            "label": "gba_area_piso_proxy_m2_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "gba_area_piso_proxy_m2_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_height_var_2019",
+            "label": "m_gba_height_var_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_height_var_2019",
+            "static": true
+          },
+          {
+            "id": "p90_gba_height_var_2019",
+            "label": "p90_gba_height_var_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p90_gba_height_var_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_altura_incert_alta_2019",
+            "label": "p_gba_altura_incert_alta_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_altura_incert_alta_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_dist_nn_2019",
+            "label": "m_gba_dist_nn_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_dist_nn_2019",
+            "static": true
+          },
+          {
+            "id": "p10_gba_dist_nn_2019",
+            "label": "p10_gba_dist_nn_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p10_gba_dist_nn_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_compacidade_2019",
+            "label": "m_gba_compacidade_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_compacidade_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_elongacao_2019",
+            "label": "m_gba_elongacao_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_elongacao_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_retangularidade_2019",
+            "label": "m_gba_retangularidade_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_retangularidade_2019",
+            "static": true
+          },
+          {
+            "id": "std_gba_orientacao_2019",
+            "label": "std_gba_orientacao_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "std_gba_orientacao_2019",
+            "static": true
+          },
+          {
+            "id": "ent_gba_orientacao_2019",
+            "label": "ent_gba_orientacao_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "ent_gba_orientacao_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_source_google_2019",
+            "label": "p_gba_source_google_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_source_google_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_source_osm_2019",
+            "label": "p_gba_source_osm_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_source_osm_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_source_microsoft_2019",
+            "label": "p_gba_source_microsoft_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_source_microsoft_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_source_tum_2019",
+            "label": "p_gba_source_tum_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_source_tum_2019",
+            "static": true
+          },
+          {
+            "id": "ent_gba_source_2019",
+            "label": "ent_gba_source_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "ent_gba_source_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_dist10viz_2019",
+            "label": "m_gba_dist10viz_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_dist10viz_2019",
+            "static": true
+          },
+          {
+            "id": "m_gba_dist20viz_2019",
+            "label": "m_gba_dist20viz_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "m_gba_dist20viz_2019",
+            "static": true
+          },
+          {
+            "id": "p_gba_height_valid_2019",
+            "label": "p_gba_height_valid_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "p_gba_height_valid_2019",
+            "static": true
+          },
+          {
+            "id": "med_gba_dist_nn_2019",
+            "label": "med_gba_dist_nn_2019",
+            "source": "GBA",
+            "year": "2019",
+            "inference": "med_gba_dist_nn_2019",
+            "static": true
+          }
+        ]
+      },
+      {
+        "name": "Topografia",
+        "variables": [
+          {
+            "id": "decli_media",
+            "label": "decli_media",
+            "source": "Modelo de elevacao",
+            "year": "",
+            "inference": "decli_media",
+            "static": true
+          },
+          {
+            "id": "has_decliv30",
+            "label": "has_decliv30",
+            "source": "Modelo de elevacao",
+            "year": "",
+            "inference": "has_decliv30",
+            "static": true
+          }
+        ]
+      },
+      {
+        "name": "Vias e quadras OSM",
+        "variables": [
+          {
+            "id": "m_shapeindex_quadra_2022",
+            "label": "Forma das quadras",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "m_shapeindex_quadra_2026",
+            "static": false
+          },
+          {
+            "id": "vias_carro_dist_2022",
+            "label": "Distancia as vias carrocaveis",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_carro_dist_2026",
+            "static": false
+          },
+          {
+            "id": "p_vias_50m_2022",
+            "label": "Proximidade as vias carrocaveis",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "p_vias_50m_2026",
+            "static": false
+          },
+          {
+            "id": "vias_comprimento_m_ha_2022",
+            "label": "Comprimento de vias por hectare",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_comprimento_m_ha_2026",
+            "static": false
+          },
+          {
+            "id": "vias_cruzamentos_por_ha_2022",
+            "label": "Densidade de cruzamentos por hectare",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_cruzamentos_por_ha_2026",
+            "static": false
+          },
+          {
+            "id": "vias_ruas_sem_saida_por_ha_2022",
+            "label": "Densidade de ruas sem saida por hectare",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_ruas_sem_saida_por_ha_2026",
+            "static": false
+          },
+          {
+            "id": "vias_entropia_orientacao_2022",
+            "label": "Entropia da orientacao das vias",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_entropia_orientacao_2026",
+            "static": false
+          },
+          {
+            "id": "quadra_area_mediana_m2_2022",
+            "label": "Area mediana das quadras",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "quadra_area_mediana_m2_2026",
+            "static": false
+          },
+          {
+            "id": "quadra_perimetro_medio_m_2022",
+            "label": "Perimetro medio das quadras",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "quadra_perimetro_medio_m_2026",
+            "static": false
+          },
+          {
+            "id": "quadra_compacidade_media_2022",
+            "label": "Compacidade media das quadras",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "quadra_compacidade_media_2026",
+            "static": false
+          },
+          {
+            "id": "quadra_alongamento_medio_2022",
+            "label": "Alongamento medio das quadras",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "quadra_alongamento_medio_2026",
+            "static": false
+          },
+          {
+            "id": "vias_principais_dist_2022",
+            "label": "Distancia as vias principais",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_principais_dist_2026",
+            "static": false
+          },
+          {
+            "id": "vias_locais_dist_2022",
+            "label": "Distancia as vias locais",
+            "source": "Geofabrik OpenStreetMap Brasil - snapshots PBF",
+            "year": "2022",
+            "inference": "vias_locais_dist_2026",
+            "static": false
+          }
+        ]
+      },
+      {
+        "name": "Presenca e idade urbana MapBiomas",
+        "variables": [
+          {
+            "id": "has_urbano_idade_2022",
+            "label": "Ocupacao urbana MapBiomas",
+            "source": "MapBiomas Brasil Colecao 11 cobertura v3",
+            "year": "2022",
+            "inference": "has_urbano_idade_2026",
+            "static": false
+          },
+          {
+            "id": "idade_ocupacao_media_2022",
+            "label": "Idade media da ocupacao urbana",
+            "source": "MapBiomas Brasil Colecao 11 cobertura v3",
+            "year": "2022",
+            "inference": "idade_ocupacao_media_2026",
+            "static": false
+          },
+          {
+            "id": "idade_ocupacao_menor_2022",
+            "label": "Ocupacao urbana mais recente",
+            "source": "MapBiomas Brasil Colecao 11 cobertura v3",
+            "year": "2022",
+            "inference": "idade_ocupacao_menor_2026",
+            "static": false
+          },
+          {
+            "id": "idade_ocupacao_maior_2022",
+            "label": "Ocupacao urbana mais antiga",
+            "source": "MapBiomas Brasil Colecao 11 cobertura v3",
+            "year": "2022",
+            "inference": "idade_ocupacao_maior_2026",
+            "static": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ibge",
+    "letter": "I",
+    "name": "IBGE",
+    "count": 30,
+    "description": "Domicilios, populacao, renda, saneamento e entorno. Sem variaveis do responsavel.",
+    "blocks": [
+      {
+        "name": "Domicilios e populacao",
+        "variables": [
+          {
+            "id": "ibge_mediadom_2022",
+            "label": "ibge_mediadom_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediadom_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediadoma_2022",
+            "label": "ibge_mediadoma_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediadoma_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediadomc_2022",
+            "label": "ibge_mediadomc_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediadomc_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapop_2022",
+            "label": "ibge_mediapop_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapop_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapopa_2022",
+            "label": "ibge_mediapopa_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapopa_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapopc_2022",
+            "label": "ibge_mediapopc_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapopc_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapopdom_2022",
+            "label": "ibge_mediapopdom_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapopdom_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapopdoma_2022",
+            "label": "ibge_mediapopdoma_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapopdoma_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_mediapopdomc_2022",
+            "label": "ibge_mediapopdomc_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_mediapopdomc_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_totaldppo_2022",
+            "label": "ibge_totaldppo_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_totaldppo_2022",
+            "static": true
+          },
+          {
+            "id": "ibge_totalmora_2022",
+            "label": "ibge_totalmora_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "ibge_totalmora_2022",
+            "static": true
+          }
+        ]
+      },
+      {
+        "name": "Banheiro, renda, agua e esgoto",
+        "variables": [
+          {
+            "id": "m_ibge_banh_2022",
+            "label": "m_ibge_banh_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "m_ibge_banh_2022",
+            "static": true
+          },
+          {
+            "id": "m_ibge_renddppo_2022",
+            "label": "m_ibge_renddppo_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "m_ibge_renddppo_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_1banhexc_2022",
+            "label": "p_ibge_1banhexc_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_1banhexc_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_banhinad_2022",
+            "label": "p_ibge_banhinad_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_banhinad_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_naorede_2022",
+            "label": "p_ibge_naorede_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_naorede_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_esginade_2022",
+            "label": "p_ibge_esginade_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_esginade_2022",
+            "static": true
+          }
+        ]
+      },
+      {
+        "name": "Lixo e entorno urbano",
+        "variables": [
+          {
+            "id": "p_ibge_lixocaca_2022",
+            "label": "p_ibge_lixocaca_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_lixocaca_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_lixoente_2022",
+            "label": "p_ibge_lixoente_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_lixoente_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_lixoinade_2022",
+            "label": "p_ibge_lixoinade_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_lixoinade_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_lixoquei_2022",
+            "label": "p_ibge_lixoquei_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_lixoquei_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_lixoterr_2022",
+            "label": "p_ibge_lixoterr_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_lixoterr_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_calcainade_2022",
+            "label": "p_ibge_calcainade_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_calcainade_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_naoarbo_2022",
+            "label": "p_ibge_naoarbo_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_naoarbo_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_naobueir_2022",
+            "label": "p_ibge_naobueir_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_naobueir_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_naocalca_2022",
+            "label": "p_ibge_naocalca_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_naocalca_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_naoilupub_2022",
+            "label": "p_ibge_naoilupub_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_naoilupub_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_obsta_2022",
+            "label": "p_ibge_obsta_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_obsta_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_vmoto_2022",
+            "label": "p_ibge_vmoto_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_vmoto_2022",
+            "static": true
+          },
+          {
+            "id": "p_ibge_vnaopavi_2022",
+            "label": "p_ibge_vnaopavi_2022",
+            "source": "IBGE Censo Demografico",
+            "year": "2022",
+            "inference": "p_ibge_vnaopavi_2022",
+            "static": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "economico_urbano",
+    "letter": "U",
+    "name": "Atividade economica e contexto urbano",
+    "count": 26,
+    "description": "Estabelecimentos CNPJ, equipamentos e servicos OSM.",
+    "blocks": [
+      {
+        "name": "Equipamentos e servicos OSM",
+        "variables": [
+          {
+            "id": "osm_n_social_2022",
+            "label": "OSM social - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_social_2026",
+            "static": false
+          },
+          {
+            "id": "osm_social_2022",
+            "label": "OSM social - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_social_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_social_2022",
+            "label": "OSM social - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_social_2026",
+            "static": false
+          },
+          {
+            "id": "osm_n_publico_2022",
+            "label": "OSM publico - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_publico_2026",
+            "static": false
+          },
+          {
+            "id": "osm_publico_2022",
+            "label": "OSM publico - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_publico_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_publico_2022",
+            "label": "OSM publico - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_publico_2026",
+            "static": false
+          },
+          {
+            "id": "osm_n_cultura_lazer_2022",
+            "label": "OSM cultura lazer - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_cultura_lazer_2026",
+            "static": false
+          },
+          {
+            "id": "osm_cultura_lazer_2022",
+            "label": "OSM cultura lazer - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_cultura_lazer_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_cultura_lazer_2022",
+            "label": "OSM cultura lazer - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_cultura_lazer_2026",
+            "static": false
+          },
+          {
+            "id": "osm_n_servicos_urbanos_2022",
+            "label": "OSM servicos urbanos - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_servicos_urbanos_2026",
+            "static": false
+          },
+          {
+            "id": "osm_servicos_urbanos_2022",
+            "label": "OSM servicos urbanos - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_servicos_urbanos_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_servicos_urbanos_2022",
+            "label": "OSM servicos urbanos - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_servicos_urbanos_2026",
+            "static": false
+          },
+          {
+            "id": "osm_n_ambiental_2022",
+            "label": "OSM ambiental - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_ambiental_2026",
+            "static": false
+          },
+          {
+            "id": "osm_ambiental_2022",
+            "label": "OSM ambiental - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_ambiental_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_ambiental_2022",
+            "label": "OSM ambiental - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_ambiental_2026",
+            "static": false
+          },
+          {
+            "id": "osm_n_total_2022",
+            "label": "OSM total - Contagem",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_n_total_2026",
+            "static": false
+          },
+          {
+            "id": "osm_total_2022",
+            "label": "OSM total - Dummy",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_total_2026",
+            "static": false
+          },
+          {
+            "id": "osm_dist_total_2022",
+            "label": "OSM total - Distancia",
+            "source": "OpenStreetMap",
+            "year": "2022",
+            "inference": "osm_dist_total_2026",
+            "static": false
+          }
+        ]
+      },
+      {
+        "name": "Atividade economica CNPJ",
+        "variables": [
+          {
+            "id": "cnpj_n_total_2022",
+            "label": "CNPJ total - contagem",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_n_total_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_total_2022",
+            "label": "CNPJ total - dummy",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_total_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_n_servicos_2022",
+            "label": "CNPJ servicos - contagem",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_n_servicos_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_servicos_2022",
+            "label": "CNPJ servicos - dummy",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_servicos_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_n_comercio_2022",
+            "label": "CNPJ comercio - contagem",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_n_comercio_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_comercio_2022",
+            "label": "CNPJ comercio - dummy",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_comercio_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_n_producao_2022",
+            "label": "CNPJ producao - contagem",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_n_producao_2026",
+            "static": false
+          },
+          {
+            "id": "cnpj_producao_2022",
+            "label": "CNPJ producao - dummy",
+            "source": "Receita Federal/CNPJ",
+            "year": "2023-04 (estoque historico rotulado 2022)",
+            "inference": "cnpj_producao_2026",
+            "static": false
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from selection_catalog import catalogue, catalogue_html, real_ibge
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "selection"
@@ -116,6 +117,18 @@ def main():
     soup = BeautifulSoup(args.validator.read_text(encoding="utf-8"), "html.parser")
     assert len(soup.select(".site-tab")) == 2
     assert soup.find(id="map-data")
+    lesson = BeautifulSoup((ASSETS / "illustrative.template.html").read_text(encoding="utf-8"), "html.parser")
+    lesson_css = lesson.find("style").extract().string
+    lesson_js = lesson.find("script").extract().string
+    old_js = next(script for script in soup.find_all("script") if "const root = document.getElementById('split-espacial-passos')" in (script.string or ""))
+    old_js.string = lesson_js
+    old_css = next(style for style in soup.find_all("style") if "#split-espacial-passos .sp-navigation" in (style.string or ""))
+    old_css.string = lesson_css
+    soup.find(id="split-espacial-passos").replace_with(lesson.find(id="split-espacial-passos"))
+    catalog = catalogue(args.outputs)
+    real = real_ibge(args.outputs)
+    (ASSETS / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (ASSETS / "ibge-aracaju.json").write_text(json.dumps(real, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     snapshot["validatorSHA256"] = hashlib.sha256(args.validator.read_bytes()).hexdigest()
     when = datetime.fromisoformat(snapshot["updatedAt"]).strftime("%d/%m/%Y \u00e0s %H:%M")
     replacements = {
@@ -124,39 +137,43 @@ def main():
         "__COMPLETED__": str(snapshot["completed"]),
         "__AREAS__": str(snapshot["completedAreas"]),
         "__PERCENT__": f'{100 * snapshot["completed"] / 182:.1f}'.replace(".", ","),
+        "__CATALOG__": catalogue_html(catalog),
     }
     results = (ASSETS / "results.template.html").read_text(encoding="utf-8")
     for token, value in replacements.items():
         results = results.replace(token, value)
-    soup.select_one("main").insert(0, fragment(results))
+    soup.select_one("main").append(fragment((ASSETS / "variables.template.html").read_text(encoding="utf-8")))
+    soup.select_one("main").append(fragment(results))
+    soup.find(id="painel-resultados")["hidden"] = ""
     header = soup.select_one(".site-header")
     header.clear()
     header.append(fragment('''<nav class="selection-breadcrumb" aria-label="Navega\u00e7\u00e3o principal"><a href="/"><i data-lucide="arrow-left" aria-hidden="true"></i>Preditor FCU</a><span>Pesquisa e metodologia</span></nav>
 <h1>Sele\u00e7\u00e3o de vari\u00e1veis</h1><p>Resultados por \u00e1rea de estudo, fam\u00edlias de vari\u00e1veis e valida\u00e7\u00e3o espacial.</p>'''))
     tabs = soup.select_one(".site-tabs")
     tabs["aria-label"] = "Sele\u00e7\u00e3o e valida\u00e7\u00e3o"
-    tabs.insert(0, fragment('''<button type="button" class="site-tab" id="aba-resultados" role="tab" aria-controls="painel-resultados" aria-selected="true" tabindex="0" data-tab="resultados"><i data-lucide="table-2" aria-hidden="true"></i>Resultados</button>'''))
-    soup.find(id="painel-passos")["hidden"] = ""
-    soup.find(id="aba-passos")["aria-selected"] = "false"
-    soup.find(id="aba-passos")["tabindex"] = "-1"
-    # Extend the validator's existing navigation, preserving its lazy map and saved view.
+    tabs.append(fragment('''<button type="button" class="site-tab" id="aba-variaveis" role="tab" aria-controls="painel-variaveis" aria-selected="false" tabindex="-1" data-tab="variaveis-exemplo"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>Vari\u00e1veis: exemplo</button><button type="button" class="site-tab" id="aba-resultados" role="tab" aria-controls="painel-resultados" aria-selected="false" tabindex="-1" data-tab="resultados"><i data-lucide="table-2" aria-hidden="true"></i>Resultados</button>'''))
+    first_tab = soup.find(id="aba-passos")
+    first_tab["data-tab"] = "exemplo-ilustrativo"
+    first_tab.clear()
+    first_tab.append(fragment('<i data-lucide="book-open" aria-hidden="true"></i>Exemplo ilustrativo'))
+    soup.find(id="painel-passos").select_one(".panel-heading h2").string = "Exemplo ilustrativo: como dividimos o territ\u00f3rio"
     navigation = soup.find_all("script")[-1]
-    js = navigation.string
-    assert "const panels={'passo-a-passo'" in js
-    js = js.replace("const panels={'passo-a-passo'", "const panels={'resultados':document.getElementById('painel-resultados'),'passo-a-passo'", 1)
-    js = js.replace("?value:'passo-a-passo'", "?value:'resultados'", 1)
-    js = js.replace("active=name;", "active=name;document.getElementById('metodologia-reserva').hidden=name==='resultados';", 1)
-    js = js.replace("document.title=name==='aracaju'", "document.title=name==='resultados'?'Sele\u00e7\u00e3o de vari\u00e1veis | Preditor FCU':name==='aracaju'", 1)
-    navigation.string = js
+    navigation.string = (ASSETS / "site-tabs.js").read_text(encoding="utf-8")
     soup.title.string = "Sele\u00e7\u00e3o de vari\u00e1veis | Preditor FCU"
     review = soup.find(id="metodologia-reserva")
-    review["hidden"] = ""
     style = soup.new_tag("style", id="selection-styles")
-    style.string = (ASSETS / "results.css").read_text(encoding="utf-8")
+    style.string = (ASSETS / "results.css").read_text(encoding="utf-8") + "\n" + (ASSETS / "teaching.css").read_text(encoding="utf-8")
     soup.head.append(style)
     script = soup.new_tag("script", id="selection-controls")
     script.string = (ASSETS / "results.js").read_text(encoding="utf-8")
     soup.body.append(script)
+    for element_id, filename in [("ibge-example-data", "ibge-example.json"), ("ibge-real-data", "ibge-aracaju.json")]:
+        data_script = soup.new_tag("script", id=element_id, type="application/json")
+        data_script.string = (ASSETS / filename).read_text(encoding="utf-8").replace("</script", "<\\/script")
+        soup.body.append(data_script)
+    example_script = soup.new_tag("script", id="ibge-example-controller")
+    example_script.string = (ASSETS / "variables.js").read_text(encoding="utf-8")
+    soup.body.append(example_script)
     meta = soup.new_tag("meta", attrs={"name": "description", "content": "Sele\u00e7\u00e3o de vari\u00e1veis nas 26 \u00e1reas de estudo: sete cen\u00e1rios por \u00e1rea e validador espacial interativo."})
     soup.head.append(meta)
     for link in soup.find_all("a", href=True):
@@ -177,9 +194,10 @@ def main():
             writer.writerow([row["name"], f'{row["completed"]}/7', *[v["k"] if v["k"] is not None else "Calc." if v["status"] == "running" else "-" for v in row["values"]], snapshot["updatedAt"]])
     ids = [element["id"] for element in soup.find_all(id=True)]
     assert len(ids) == len(set(ids))
-    assert len(soup.select('.site-tab')) == len(soup.select('[role="tabpanel"]')) == 3
+    assert len(soup.select('.site-tab')) == len(soup.select('[role="tabpanel"]')) == 4
     assert len(soup.select('#selection-table tbody tr')) == 26
     assert len(soup.select('#selection-status option')) == 4
+    assert len(soup.select('[data-variable]')) == 114
     assert not soup.find("iframe")
     assert not soup.find("script", src=True)
     assert soup.find(id="map-data").string
@@ -187,7 +205,7 @@ def main():
     assert "file:///" not in page
     destination = ROOT / "selecaovariaveis.html"
     destination.write_text(page, encoding="utf-8", newline="\n")
-    print(f"{destination}: {snapshot['completed']}/182 scenarios, 26 areas, 3 tabs; {when} BRT")
+    print(f"{destination}: {snapshot['completed']}/182 scenarios, 26 areas, 4 tabs; {when} BRT")
 
 
 if __name__ == "__main__":

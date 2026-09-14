@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-09-14T09:46:22-03:00",
+  "updatedAt": "2026-09-14T12:44:34-03:00",
   "timeZone": "America/Sao_Paulo",
-  "completed": 58,
+  "completed": 60,
   "expected": 182,
   "completedAreas": 6,
   "candidates": 114,
   "sensorsIncluded": false,
-  "summarySHA256": "e6c24660b9aaf235a206a5fffd4bc598a8cccfeef0d3f1ab47a9abca78ff5d31",
+  "summarySHA256": "d55ebe685d2e8cfa1f2b056259fac039e400be15e31e42dedaafdbe8c3ee2168",
   "rows": [
     {
       "id": "area_cu_aracaju",
@@ -461,7 +461,7 @@
     {
       "id": "area_cu_florianopolis",
       "name": "Florianópolis",
-      "completed": 1,
+      "completed": 3,
       "status": "running",
       "values": [
         {
@@ -473,20 +473,20 @@
         {
           "scenario": "ibge",
           "label": "I",
-          "k": null,
-          "status": "running"
+          "k": 14,
+          "status": "completed"
         },
         {
           "scenario": "economico_urbano",
           "label": "U",
-          "k": null,
-          "status": "pending"
+          "k": 6,
+          "status": "completed"
         },
         {
           "scenario": "morfologico_ibge",
           "label": "M + I",
           "k": null,
-          "status": "pending"
+          "status": "running"
         },
         {
           "scenario": "morfologico_economico_urbano",

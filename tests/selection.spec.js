@@ -7,6 +7,8 @@ test('selection snapshot, filters and public downloads', async ({ page, request 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(selectionPath);
+  await expect(page.locator('#aba-passos')).toHaveAttribute('aria-selected', 'true');
+  await page.locator('#aba-resultados').click();
   await expect(page.locator('#aba-resultados')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#selection-table tbody tr')).toHaveCount(26);
   await expect(page.locator('#selection-table .selected-k')).toHaveCount(snapshot.completed);
@@ -42,7 +44,7 @@ test('selection snapshot, filters and public downloads', async ({ page, request 
 });
 
 for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
-  test(`three tabs, lesson and real map at ${viewport.width}px`, async ({ page }) => {
+  test(`four tabs, lesson and real map at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -69,7 +71,7 @@ for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 
     await page.locator('#fold').selectOption('4');
     await page.evaluate(() => SpatialSplit.selectCell(SpatialSplit.data.examples[1]));
     const selected = await page.evaluate(() => ({ selected: SpatialSplit.state.selected, zoom: SpatialSplit.map.getZoom(), rep: SpatialSplit.state.rep, fold: SpatialSplit.state.fold }));
-    for (const tab of ['resultados', 'passos', 'aracaju']) {
+    for (const tab of ['resultados', 'passos', 'variaveis', 'aracaju']) {
       await page.locator('#aba-' + tab).click();
       await page.waitForTimeout(180);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -93,3 +95,79 @@ test('dashboard keeps the selection link after navigation is initialized', async
   await page.goto('/');
   await expect(page.locator('.site-nav-links a[href="/selecaovariaveis"]')).toHaveCount(1);
 });
+
+test('full candidate catalogue uses the actual sources and temporal pairs', async ({ page }) => {
+  const catalog = require('../selection/catalog.json');
+  await page.goto(selectionPath + '#resultados');
+  await expect(page.locator('[data-variable]')).toHaveCount(114);
+  for (const family of catalog) {
+    const disclosure = page.locator(`[data-family="${family.code}"]`);
+    await disclosure.locator(':scope > summary').click();
+    await expect(disclosure).toHaveAttribute('open', '');
+    for (let i = 0; i < family.blocks.length; i++) {
+      const block = disclosure.locator('.catalog-group').nth(i);
+      await block.locator('summary').click();
+      for (const variable of family.blocks[i].variables) {
+        const row = block.locator(`[data-variable="${variable.id}"]`);
+        await expect(row).toBeVisible();
+        await expect(row.locator('td').first()).toContainText(variable.source);
+        await expect(row.locator('td').last()).toContainText(variable.static ? 'Mesma coluna' : variable.inference);
+      }
+    }
+  }
+});
+
+for (const width of [1366, 390, 320]) {
+  test(`detailed lessons and live equation at ${width}px`, async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(selectionPath);
+    await expect(page.locator('.site-tab')).toHaveText(['Exemplo ilustrativo', 'Caso real: Aracaju', 'Vari\u00e1veis: exemplo', 'Resultados']);
+    for (let i = 0; i < 9; i++) await page.locator('#sp-next').click();
+    await expect(page.locator('.sp-round-table tbody tr')).toHaveCount(5);
+    await page.locator('.sp-round-table button').nth(2).click();
+    await expect(page.locator('.sp-reading')).toContainText('grupo C');
+    await page.locator('#sp-next').click();
+    await expect(page.locator('.sp-mini-blocks')).toHaveCount(2);
+    await expect(page.locator('.sp-mini-blocks span')).toHaveCount(50);
+    await page.locator('#sp-next').click();
+    await expect(page.locator('.sp-evaluations button')).toHaveCount(25);
+    await page.locator('.sp-evaluations button').last().click();
+    await expect(page.locator('.sp-reading')).toContainText('divis\u00e3o 5, rodada 5');
+    await page.locator('#aba-variaveis').click();
+    for (let step = 0; step < 15; step++) {
+      await page.locator('#ibge-step').selectOption(String(step));
+      await expect(page.locator('#ibge-phase')).toContainText(`${step + 1} de 15`);
+      expect(await page.locator('#ibge-visual').evaluate(element => element.childElementCount)).toBeGreaterThan(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      if ([4, 6, 10, 14].includes(step)) await expect(page.locator('#ibge-visual svg').first()).toBeVisible();
+      if (step === 12) {
+        const result = await page.evaluate(() => {
+          const app = IbgeExample;
+          const original = app.prediction().p;
+          const input = document.querySelector('[data-term]');
+          input.value = input.max; input.dispatchEvent(new Event('input', { bubbles: true }));
+          return { original, changed: app.prediction().p, text: document.getElementById('equation-probability').textContent };
+        });
+        expect(Math.abs(result.original - result.changed)).toBeGreaterThan(.001);
+        expect(result.text).toContain('%');
+        const maxError = await page.evaluate(() => {
+          const { final } = IbgeExample.data;
+          return Math.max(...final.referencePredictions.map(row => {
+            const z = final.intercept + final.terms.reduce((sum, term) => sum + IbgeExample.contribution(term, row.x[term.id]), 0);
+            return Math.abs(1 / (1 + Math.exp(-z)) - row.p);
+          }));
+        });
+        expect(maxError).toBeLessThan(1e-12);
+      }
+    }
+    await expect(page.locator('#ibge-next')).toBeDisabled();
+    await expect(page.locator('#ibge-visual-source')).toContainText('DADOS REAIS');
+    await expect(page.locator('#ibge-story')).toContainText('0,8372');
+    await page.locator('#aba-resultados').click();
+    await page.locator('[data-go-tab]').click();
+    await expect(page.locator('#aba-variaveis')).toHaveAttribute('aria-selected', 'true');
+    expect(errors).toEqual([]);
+  });
+}
