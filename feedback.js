@@ -144,6 +144,7 @@
             '<h2 class="feedback-modal-title" id="feedback-modal-title" data-feedback-text="title">Envie sua mensagem</h2>' +
             '<p class="feedback-modal-description" id="feedback-modal-description" data-feedback-text="description">Compartilhe uma dúvida, sugestão ou relato sobre o mapa.</p>' +
             '<p class="feedback-privacy-note" id="feedback-privacy-note" data-feedback-text="privacyNote">Seu nome e e-mail serão usados para responder à sua mensagem.</p>' +
+            '<button class="feedback-history-toggle" type="button">Minhas mensagens</button>' +
           '</header>' +
           '<form class="feedback-form">' +
             '<div class="feedback-field">' +
@@ -164,6 +165,7 @@
               '<span class="feedback-spinner" aria-hidden="true" hidden></span>' +
             '</button>' +
           '</form>' +
+          '<section class="feedback-history" hidden><h3>Minhas mensagens</h3><div class="feedback-history-list"></div><button type="button" class="feedback-history-back">← Nova mensagem</button></section>' +
         '</div>' +
         '<div class="feedback-success" role="status" tabindex="-1" hidden>' +
           '<span class="feedback-success-check" aria-hidden="true">✓</span>' +
@@ -222,6 +224,8 @@
   }
 
   function showFormView(reset) {
+    const history = root.querySelector('.feedback-history');
+    if (history) history.hidden = true;
     const formView = root.querySelector('.feedback-form-view');
     if (reset) form.reset();
     formView.hidden = false;
@@ -233,6 +237,26 @@
     const message = root.querySelector('#feedback-message');
     if (name) name.setCustomValidity('');
     if (message) message.setCustomValidity('');
+  }
+
+  async function loadMyMessages() {
+    const auth = window.PreditorAuth;
+    const history = root.querySelector('.feedback-history');
+    const formView = root.querySelector('.feedback-form-view');
+    const list = root.querySelector('.feedback-history-list');
+    if (!auth || !auth.user || !auth.client) return;
+    formView.hidden = true; history.hidden = false; list.innerHTML = '<p>Carregando...</p>';
+    const result = await auth.client.from('fcu_user_messages').select('*').order('created_at',{ascending:false});
+    if (result.error) { list.innerHTML = '<p>Não foi possível carregar suas mensagens.</p>'; return; }
+    list.innerHTML = result.data.length ? result.data.map(function (item) {
+      const date = new Date(item.created_at).toLocaleString('pt-BR');
+      const state = item.status === 'replied' ? 'Respondida' : item.status === 'received' ? 'Recebida pela equipe' : 'Enviada';
+      return '<article><small>'+date+' · '+state+'</small><p>'+escapeHtml(item.message)+'</p>'+(item.reply?'<div><strong>Resposta da equipe</strong><p>'+escapeHtml(item.reply)+'</p></div>':'')+'</article>';
+    }).join('') : '<p>Você ainda não enviou mensagens.</p>';
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
   }
 
   function showSuccess() {
@@ -249,6 +273,14 @@
     activeSubmissionId = submissionId();
     lastFocused = trigger || document.activeElement;
     showFormView(sentSuccessfully);
+    const auth = window.PreditorAuth, signed = auth && auth.user;
+    const name = root.querySelector('#feedback-name'), email = root.querySelector('#feedback-email');
+    [name,email].forEach(function(input){ if(input) input.closest('.feedback-field').hidden=!!signed; });
+    if (signed) {
+      const meta=signed.user_metadata||{}; name.value=meta.full_name||'Participante'; email.value=signed.email||'';
+      root.querySelector('#feedback-privacy-note').textContent=(meta.full_name||signed.email)+' · '+(meta.institution||'Instituição cadastrada');
+      root.querySelector('.feedback-history-toggle').hidden=false;
+    } else root.querySelector('.feedback-history-toggle').hidden=true;
     root.hidden = false;
     document.body.classList.add('feedback-modal-open');
     window.setTimeout(function () {
@@ -342,6 +374,14 @@
     }, REQUEST_TIMEOUT_MS);
 
     try {
+      const auth = window.PreditorAuth;
+      if (auth && auth.user && auth.client) {
+        const saved = await auth.client.from('fcu_user_messages').insert({user_id:auth.user.id,source:context.source,message:message.slice(0,2000),area_id:context.area_slug||null,cell_id:context.cell_id||null});
+        if (saved.error) throw saved.error;
+        if (requestId !== requestSequence || root.hidden) return;
+        showSuccess();
+        return;
+      }
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         headers: {
@@ -397,6 +437,8 @@
       if (event.target.closest('[data-feedback-close]')) close();
     });
     form.addEventListener('submit', handleSubmit);
+    root.querySelector('.feedback-history-toggle').addEventListener('click',loadMyMessages);
+    root.querySelector('.feedback-history-back').addEventListener('click',function(){root.querySelector('.feedback-history').hidden=true;root.querySelector('.feedback-form-view').hidden=false;});
     const name = root.querySelector('#feedback-name');
     const message = root.querySelector('#feedback-message');
     name.addEventListener('input', function () { name.setCustomValidity(''); });
