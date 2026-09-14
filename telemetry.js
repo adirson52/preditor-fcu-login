@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const PRODUCTION_HOST = 'preditor-fcu-v2.vercel.app';
+  const PRODUCTION_HOSTS = ['preditor-fcu-v2.vercel.app', 'preditor-fcu-login.vercel.app'];
   const ENDPOINT = 'https://preditor-fcu-master.vercel.app/api/collect';
   const TELEMETRY_VERSION = '2026-09-10.7';
   const PREVIOUS_COMPATIBLE_VERSION = '2026-09-10.6';
@@ -34,7 +34,7 @@
     area_conc_urb_sao_paulo: 'São Paulo - Conc. Urbana'
   };
 
-  if (window.location.hostname !== PRODUCTION_HOST) return;
+  if (!PRODUCTION_HOSTS.includes(window.location.hostname)) return;
 
   function resolveStorage(name) {
     try { return window[name]; } catch (_) { return null; }

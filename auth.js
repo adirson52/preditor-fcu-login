@@ -177,6 +177,7 @@
 
   async function trackEvent(eventName, point) {
     if (!currentUser) return;
+    window.PreditorTelemetry?.track('auth_' + eventName, {}, {cellId: point?.id, area: point?.a || point?.scope});
     const areaId = point && (point.a || point.scope) ? String(point.a || point.scope) : null;
     const cellId = point && point.id ? String(point.id) : null;
     let sessionId = safeStorageGet(SESSION_KEY);
