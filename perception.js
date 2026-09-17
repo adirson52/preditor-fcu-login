@@ -1333,11 +1333,11 @@
           <div class="fcu-account-card-head">
             <h3 class="fcu-account-card-title">🔒 Alterar Senha de Acesso</h3>
           </div>
-          <p class="fcu-account-card-desc">Atualize sua senha de acesso a qualquer momento. A nova senha deve ter no mínimo 4 dígitos.</p>
+          <p class="fcu-account-card-desc">Atualize sua senha de acesso a qualquer momento. A nova senha deve ter no mínimo 6 dígitos.</p>
           <form id="fcu-pwd-form">
             <div class="fcu-acc-field">
-              <label for="fcu-new-pwd-input">Nova senha de acesso (mínimo 4 dígitos)</label>
-              <input id="fcu-new-pwd-input" type="password" name="new_pwd" minlength="4" required placeholder="Preencha sua nova senha (mínimo 4 dígitos)">
+              <label for="fcu-new-pwd-input">Nova senha de acesso (mínimo 6 dígitos)</label>
+              <input id="fcu-new-pwd-input" type="password" name="new_pwd" minlength="6" required placeholder="Preencha sua nova senha (mínimo 6 dígitos)">
             </div>
             <button class="fcu-acc-submit-btn" type="submit">Atualizar minha senha</button>
             <p id="fcu-pwd-status" class="fcu-perception-status" style="margin-top:10px;"></p>
@@ -1404,10 +1404,16 @@
     $('#fcu-pwd-form').onsubmit = async e => {
       e.preventDefault();
       const p = e.target.elements.new_pwd.value.trim();
-      if(!p || p.length < 4) return status('A senha precisa ter 4 dígitos ou mais.', true, '#fcu-pwd-status');
+      if(!p || p.length < 6) return status('A senha precisa ter 6 dígitos ou mais.', true, '#fcu-pwd-status');
       status('Atualizando senha...', false, '#fcu-pwd-status');
       const res = await db.auth.updateUser({ password: p, data: { must_change_password: false } });
-      if(res.error) return status('Não foi possível alterar a senha: ' + res.error.message, true, '#fcu-pwd-status');
+      if(res.error) {
+        let errMsg = res.error.message || '';
+        if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
+          errMsg = 'A senha deve ter no mínimo 6 dígitos.';
+        }
+        return status('Não foi possível alterar a senha: ' + errMsg, true, '#fcu-pwd-status');
+      }
       window.PreditorTelemetry?.track('profile_password_update');
       status('✓ Senha alterada com sucesso!', false, '#fcu-pwd-status');
       e.target.reset();
