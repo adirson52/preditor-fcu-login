@@ -242,7 +242,26 @@
     await trackEvent('cell_view', point);
   }
 
-  ui.button.addEventListener('click', function () { openModal(currentUser ? 'account' : 'login'); });
+  ui.button.addEventListener('click', function () {
+    if (currentUser) {
+      if (window.PreditorPerception && typeof window.PreditorPerception.openProfile === 'function') {
+        window.PreditorPerception.openProfile();
+      } else {
+        const panel = document.getElementById('fcu-perception-panel');
+        if (panel) {
+          panel.classList.add('is-open');
+          const shade = document.getElementById('fcu-perception-shade');
+          if (shade) shade.classList.add('is-open');
+          const tabBtn = document.querySelector('[data-tab="profile"]');
+          if (tabBtn) tabBtn.click();
+        } else {
+          openModal('account');
+        }
+      }
+    } else {
+      openModal('login');
+    }
+  });
   ui.backdrop.querySelector('.fcu-auth-close').addEventListener('click', closeModal);
   ui.backdrop.addEventListener('click', function (event) { if (event.target === ui.backdrop) closeModal(); });
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && ui.backdrop.classList.contains('is-open')) closeModal(); });
@@ -269,7 +288,12 @@
       password: String(values.get('password') || '')
     });
     setBusy(form, false);
-    if (result.error) return setMessage('Não foi possível entrar. Confira o e-mail, a senha e a confirmação do cadastro.', true);
+    if (result.error) {
+      let msg = result.error.message || 'Confira e-mail e senha.';
+      if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
+      else if (msg.includes('Email not confirmed')) msg = 'E-mail ainda não confirmado. Verifique a caixa de entrada do seu e-mail.';
+      return setMessage('Não foi possível entrar: ' + msg, true);
+    }
     updateUserUi(result.data.user);
     setMessage('Acesso confirmado.');
     await trackEvent('login');

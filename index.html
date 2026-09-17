@@ -1245,8 +1245,8 @@ window.addEventListener('unhandledrejection', function(event) {
 </style>
 
     <link rel="stylesheet" href="feedback.css?v=2026-09-14.1">
-    <link rel="stylesheet" href="auth.css?v=2026-09-11.1">
-    <link rel="stylesheet" href="perception.css?v=2026-09-14.1">
+    <link rel="stylesheet" href="auth.css?v=2026-09-17.5">
+    <link rel="stylesheet" href="perception.css?v=2026-09-17.14">
 </head>
 
 <body>
@@ -1395,6 +1395,8 @@ window.addEventListener('unhandledrejection', function(event) {
             mapLayers: L.layerGroup()
         };
         window.__PREDITOR_APP__ = App;
+        window.PreditorApp = App;
+        window.App = App;
 
         function initMap() {
             if (App.map) return;
@@ -4834,6 +4836,9 @@ window.addEventListener('unhandledrejection', function(event) {
       selectCellSampleExplicit(mergedSample, false);
       if (typeof loadFcusForCurrentArea === 'function') setTimeout(loadFcusForCurrentArea, 180);
       showPointPopup(mergedSample);
+      if (window.PreditorPerception && typeof window.PreditorPerception.notifyCellSelected === 'function') {
+        window.PreditorPerception.notifyCellSelected(mergedSample);
+      }
     };
     if (areaName && !sameArea && typeof loadPolo === 'function') {
       if (typeof App !== 'undefined') App.finalPendingPointOpen = true;
@@ -5857,28 +5862,29 @@ window.addEventListener('unhandledrejection', function(event) {
     if (e && e.originalEvent && typeof L !== 'undefined') L.DomEvent.stop(e.originalEvent);
     const anyPriorityLayerVisible = ['priority', 'attention', 'other'].some(finalClassVisible);
     if (typeof App === 'undefined' || !App.map || (!FINAL_RANKING_STATE.visible && !anyPriorityLayerVisible) || App.map.getZoom() < TILE_Z) return;
+    const clickPt = App.map.latLngToContainerPoint(e.latlng);
     const c = tileCoord(e.latlng.lat, e.latlng.lng, TILE_Z);
     const fallbackAreaCol = App.currentPolo ? App.currentPolo.area_col : null;
     fetchTile(c.x, c.y).then(data => {
       let best = null;
-      let bestD = Infinity;
-      const tolerance = 18 / Math.max(1, Math.pow(2, App.map.getZoom() - TILE_Z));
+      let bestD2 = Infinity;
+      const maxScreenRadiusPx = 56;
       for (const p of (data.p || [])) {
         const areaCol = p.a || fallbackAreaCol;
         const key = candidateClassKeyFromRank(actionRankingValue(p), areaCol);
         const visibleByQml = FINAL_RANKING_STATE.visible && key !== 'other';
         const visibleByPriorityLayer = finalClassVisible(key);
         if (!visibleByQml && !visibleByPriorityLayer) continue;
-        const pc = tileCoord(Number(p.lat), Number(p.lng), TILE_Z);
-        const dx = pc.px - c.px;
-        const dy = pc.py - c.py;
-        const d = dx * dx + dy * dy;
-        if (d < bestD) {
-          bestD = d;
+        const pointPt = App.map.latLngToContainerPoint(L.latLng(Number(p.lat), Number(p.lng)));
+        const dx = pointPt.x - clickPt.x;
+        const dy = pointPt.y - clickPt.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestD2) {
+          bestD2 = d2;
           best = p;
         }
       }
-      if (best && bestD <= tolerance * tolerance) {
+      if (best && bestD2 <= maxScreenRadiusPx * maxScreenRadiusPx) {
         if (window.PreditorAuth && typeof window.PreditorAuth.guardCellOpen === 'function') {
           window.PreditorAuth.guardCellOpen(best, () => openSampleFromPoint(best));
         } else {
@@ -5906,18 +5912,12 @@ window.addEventListener('unhandledrejection', function(event) {
         const selectedBeforeLang = (typeof App !== 'undefined' && App.selectedSample) ? App.selectedSample : null;
         previousSetLang(lang);
         setTimeout(() => {
-          if (selectedBeforeLang && typeof selectSample === 'function') {
-            selectSample(selectedBeforeLang);
-          }
           applyEbmTranslations();
-          refreshAllPointsLegend();
-          refreshMapSizeButton();
-          refreshLocalPanelButton();
-          refreshLocationButton();
-          refreshBasemapControlLabel();
-          refreshMinimapToggleLabel();
-          initMapOverlaySearch();
-        }, 300);
+          refreshTouchInteractionGates();
+          if (selectedBeforeLang) {
+            finalRenderSelectionDetails(selectedBeforeLang);
+          }
+        }, 60);
       };
     }
 
@@ -5933,7 +5933,7 @@ window.addEventListener('unhandledrejection', function(event) {
       initMapOverlaySearch();
       refreshFcuCanvasLayer();
       refreshTouchInteractionGates();
-      if (!App.qmlPointsLayer) {
+      if (App.map) {
         App.qmlPointsLayer = new AllPointsLayer({
           tileSize: 256,
           opacity: 0.92,
@@ -5962,20 +5962,10 @@ window.addEventListener('unhandledrejection', function(event) {
         });
         App.map.options.closePopupOnClick = true;
         if (App.map.doubleClickZoom) App.map.doubleClickZoom.enable();
-        let finalSingleClickTimer = null;
-        const clearFinalSingleClick = () => {
-          if (finalSingleClickTimer) clearTimeout(finalSingleClickTimer);
-          finalSingleClickTimer = null;
-        };
         App.map.on('click', event => {
           if (window.PreditorPerception && window.PreditorPerception.isDrawing()) return;
-          clearFinalSingleClick();
-          finalSingleClickTimer = setTimeout(() => {
-            finalSingleClickTimer = null;
-            handleAllPointsClick(event);
-          }, 260);
+          handleAllPointsClick(event);
         });
-        App.map.on('dblclick', clearFinalSingleClick);
         // O GridLayer troca os tiles automaticamente durante pan/zoom. Forçar
         // redraw nesses eventos apagava os canvases prontos antes da recarga.
         App.map.on('zoomend', refreshFcuPolygonsStyle);
@@ -7202,8 +7192,8 @@ window.addEventListener('unhandledrejection', function(event) {
 <script src="feedback.js?v=2026-09-14.1" defer></script>
 <script src="telemetry.js?v=2026-09-10.7" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js" defer></script>
-<script src="auth.js?v=2026-09-11.1" defer></script>
-<script src="perception.js?v=2026-09-14.1" defer></script>
+<script src="auth.js?v=2026-09-17.6" defer></script>
+<script src="perception.js?v=2026-09-17.23" defer></script>
 </body>
 
 </html>
