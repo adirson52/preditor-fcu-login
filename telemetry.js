@@ -233,6 +233,17 @@
 
   function payload(eventName, properties, options) {
     const settings = options || {};
+    const authUser = (window.PreditorAuth && window.PreditorAuth.user) || null;
+    const userMeta = (authUser && authUser.user_metadata) || {};
+    const userEmail = authUser && authUser.email ? String(authUser.email).slice(0, 160) : null;
+    const userName = authUser && (userMeta.full_name || userMeta.name) ? String(userMeta.full_name || userMeta.name).slice(0, 160) : null;
+    const institution = authUser && userMeta.institution ? String(userMeta.institution).slice(0, 160) : null;
+
+    const userProps = {};
+    if (userEmail) userProps.user_email = userEmail;
+    if (userName) userProps.user_name = userName;
+    if (institution) userProps.institution = institution;
+
     return {
       event_id: identifier('event'),
       visitor_id: visitorId,
@@ -243,12 +254,16 @@
       page_type: pageType(),
       area_slug: String(settings.area || currentArea() || '').slice(0, 160),
       cell_id: String(settings.cellId || '').slice(0, 160),
+      user_id: authUser && authUser.id ? String(authUser.id).slice(0, 80) : null,
+      user_email: userEmail,
+      user_name: userName,
+      institution: institution,
       language: String(navigator.language || '').slice(0, 40),
       timezone: String(Intl.DateTimeFormat().resolvedOptions().timeZone || '').slice(0, 80),
       screen_width: Number(window.screen && window.screen.width) || 0,
       screen_height: Number(window.screen && window.screen.height) || 0,
       active_seconds: Math.max(0, Math.min(60, Number(settings.activeSeconds) || 0)),
-      properties: Object.assign({}, properties || {}, { telemetry_version: TELEMETRY_VERSION }),
+      properties: Object.assign({}, properties || {}, userProps, { telemetry_version: TELEMETRY_VERSION }),
       test_token: testToken
     };
   }
