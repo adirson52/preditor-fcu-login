@@ -58,10 +58,10 @@
 
         <form class="fcu-auth-view" id="fcu-login-form" data-view="login">
           <label class="fcu-auth-field">E-mail
-            <input name="email" type="email" autocomplete="email" required>
+            <input name="email" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Senha
-            <input name="password" type="password" autocomplete="current-password" minlength="8" required>
+          <label class="fcu-auth-field fcu-auth-password">Senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="current-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <button class="fcu-auth-submit" type="submit">Entrar</button>
@@ -72,15 +72,15 @@
           <label class="fcu-auth-field">Nome completo
             <input name="full_name" type="text" autocomplete="name" minlength="2" maxlength="150" required>
           </label>
-          <label class="fcu-auth-field">E-mail válido
-            <input name="email" type="email" autocomplete="email" placeholder="voce@exemplo.com" required>
-            <small>Você receberá neste endereço o link para confirmar seu cadastro.</small>
+          <label class="fcu-auth-field">E-mail de acesso
+            <input name="email" type="email" autocomplete="email" placeholder="voce@exemplo.com, @gmail.com, @ibge.gov.br..." required>
+            <small>Aceitamos e-mails de instituições, Gmail, Hotmail, Outlook, IBGE, universidades, etc.</small>
           </label>
-          <label class="fcu-auth-field">Instituição
-            <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ou Independente / sem vínculo" required>
+          <label class="fcu-auth-field">Instituição / Organização
+            <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ex.: IBGE, Prefeitura, Universidade, Autônomo..." required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Crie sua senha
-            <input name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <label class="fcu-auth-field fcu-auth-password">Crie sua senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="new-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <label class="fcu-auth-check">
@@ -89,13 +89,13 @@
           </label>
           <label class="fcu-auth-check">
             <input name="privacy" type="checkbox" required>
-            <span>Estou ciente da <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a> e do uso de dados de acesso em estudos e relatórios acadêmicos.</span>
+            <span>Estou ciente da <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a> e do uso de dados em estudos técnicos.</span>
           </label>
-          <button class="fcu-auth-submit" type="submit">Criar conta</button>
+          <button class="fcu-auth-submit" type="submit">Criar conta e acessar agora</button>
         </form>
 
         <form class="fcu-auth-view" id="fcu-reset-form" data-view="reset" hidden>
-          <label class="fcu-auth-field">E-mail
+          <label class="fcu-auth-field">E-mail cadastrado
             <input name="email" type="email" autocomplete="email" required>
           </label>
           <button class="fcu-auth-submit" type="submit">Enviar link de recuperação</button>
@@ -103,16 +103,43 @@
         </form>
 
         <form class="fcu-auth-view" id="fcu-new-password-form" data-view="new-password" hidden>
-          <label class="fcu-auth-field fcu-auth-password">Nova senha
-            <input name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <div id="fcu-must-change-banner" class="fcu-auth-banner-must-change" hidden style="padding:10px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:12px;font-weight:700;margin-bottom:12px;">
+            🔒 Primeiro acesso ou redefinição pela Master: crie sua nova senha pessoal de 4 dígitos ou mais para continuar.
+          </div>
+          <label class="fcu-auth-field fcu-auth-password">Nova senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="new-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <button class="fcu-auth-submit" type="submit">Salvar nova senha</button>
         </form>
 
+        <form class="fcu-auth-view" id="fcu-help-form" data-view="help" hidden>
+          <h3 style="margin:0 0 6px;font-size:16px;color:var(--auth-ink);font-weight:800;">💬 Mensagem para a Equipe Master</h3>
+          <p style="margin:0 0 12px;font-size:12px;color:var(--auth-muted);line-height:1.4;">
+            Está com dificuldades para entrar, esqueceu a senha ou precisa de auxílio no cadastro? Envie uma mensagem direta para a Master.
+          </p>
+          <label class="fcu-auth-field">Seu E-mail ou Nome
+            <input name="sender_info" type="text" placeholder="voce@exemplo.com ou seu nome" required>
+          </label>
+          <label class="fcu-auth-field">WhatsApp ou Telefone <span>(opcional)</span>
+            <input name="phone" type="tel" placeholder="(00) 90000-0000">
+          </label>
+          <label class="fcu-auth-field">Qual a dificuldade encontrada?
+            <textarea name="message_text" rows="3" placeholder="Ex.: Esqueci minha senha e preciso de ajuda para redefinir..." required style="width:100%;box-sizing:border-box;border-radius:10px;padding:10px;border:1px solid var(--auth-line);font:inherit;background:#fff;"></textarea>
+          </label>
+          <button class="fcu-auth-submit" type="submit">Enviar mensagem para a Master</button>
+          <button class="fcu-auth-link" type="button" data-auth-view="login" style="margin-top:8px;">Voltar para o login</button>
+        </form>
+
         <div class="fcu-auth-view" id="fcu-account-view" data-view="account" hidden>
           <p>Você está conectado como <strong id="fcu-account-email"></strong>.</p>
           <button class="fcu-auth-submit" id="fcu-logout-button" type="button">Sair</button>
+        </div>
+
+        <div class="fcu-auth-help-footer" style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;">
+          <button type="button" class="fcu-auth-link" data-auth-view="help" style="margin:0 auto;color:#087d99;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:4px;">
+            💬 Estou com dificuldades para acessar (Falar com a Master)
+          </button>
         </div>
         <p class="fcu-auth-message" id="fcu-auth-message" aria-live="polite"></p>
       </section>`;
@@ -277,16 +304,37 @@
     });
   });
 
+  function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    const str = email.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/;
+    const match = str.match(emailRegex);
+    if (!match) return false;
+
+    const domain = match[1];
+    const parts = domain.split('.');
+    const tld = parts[parts.length - 1];
+
+    const invalidTlds = ['hahah', 'haha', 'test', 'fake', 'invalid', 'local', 'example'];
+    if (invalidTlds.includes(tld)) return false;
+    if (parts.length < 2 || tld.length < 2) return false;
+
+    return true;
+  }
+
   document.getElementById('fcu-login-form').addEventListener('submit', async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
     setBusy(form, true);
     setMessage('Entrando...');
     const values = new FormData(form);
-    const result = await client.auth.signInWithPassword({
-      email: String(values.get('email') || '').trim(),
-      password: String(values.get('password') || '')
-    });
+    const email = String(values.get('email') || '').trim();
+    const password = String(values.get('password') || '');
+    if (!password || password.length < 4) {
+      setBusy(form, false);
+      return setMessage('A senha deve ter no mínimo 4 dígitos.', true);
+    }
+    const result = await client.auth.signInWithPassword({ email, password });
     setBusy(form, false);
     if (result.error) {
       let msg = result.error.message || 'Confira e-mail e senha.';
@@ -305,11 +353,21 @@
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
+    const email = String(values.get('email') || '').trim();
+    const password = String(values.get('password') || '');
+
+    if (!isValidEmail(email)) {
+      return setMessage('Informe um e-mail válido (ex.: nome@gmail.com, @hotmail.com, @ibge.gov.br, @universidade.edu.br). Domínios inválidos não são aceitos.', true);
+    }
+    if (!password || password.length < 4) {
+      return setMessage('A senha deve ter no mínimo 4 dígitos ou caracteres.', true);
+    }
+
     setBusy(form, true);
-    setMessage('Criando sua conta...');
+    setMessage('Criando sua conta e liberando acesso...');
     const result = await client.auth.signUp({
-      email: String(values.get('email') || '').trim(),
-      password: String(values.get('password') || ''),
+      email: email,
+      password: password,
       options: {
         emailRedirectTo: location.origin + location.pathname,
         data: {
@@ -322,16 +380,31 @@
         }
       }
     });
-    setBusy(form, false);
-    if (result.error) return setMessage('Não foi possível concluir o cadastro: ' + result.error.message, true);
+
+    if (result.error) {
+      setBusy(form, false);
+      return setMessage('Não foi possível concluir o cadastro: ' + result.error.message, true);
+    }
+
     if (result.data.session) {
+      setBusy(form, false);
       updateUserUi(result.data.user);
-      setMessage('Conta criada e acesso confirmado.');
+      setMessage('Conta criada e acesso liberado!');
       await resumePendingPoint();
       closeModal();
     } else {
-      form.reset();
-      setMessage('Cadastro recebido. Abra o e-mail enviado e clique no link para confirmar sua conta.');
+      const autoLogin = await client.auth.signInWithPassword({ email, password });
+      setBusy(form, false);
+      if (autoLogin.data && autoLogin.data.session) {
+        updateUserUi(autoLogin.data.user);
+        setMessage('Conta criada e acesso liberado!');
+        await resumePendingPoint();
+        closeModal();
+      } else {
+        form.reset();
+        setMessage('Cadastro concluído com sucesso! Você já pode entrar com seu e-mail e senha.');
+        setView('login');
+      }
     }
   });
 
@@ -345,21 +418,58 @@
     });
     setBusy(form, false);
     if (result.error) return setMessage('Não foi possível enviar o link agora. Tente novamente em alguns minutos.', true);
-    setMessage('Se houver uma conta cadastrada, você receberá um link para criar uma nova senha.');
+    setMessage('Se houver uma conta cadastrada, você receberá o link para criar uma nova senha.');
   });
 
   document.getElementById('fcu-new-password-form').addEventListener('submit', async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
     const password = String(new FormData(form).get('password') || '');
+    if (!password || password.length < 4) {
+      return setMessage('A nova senha deve ter no mínimo 4 dígitos.', true);
+    }
     setBusy(form, true);
-    const result = await client.auth.updateUser({ password: password });
+    const result = await client.auth.updateUser({
+      password: password,
+      data: { must_change_password: false }
+    });
     setBusy(form, false);
     if (result.error) return setMessage('Não foi possível salvar a nova senha: ' + result.error.message, true);
-    setMessage('Senha alterada. Você já está conectado.');
+    setMessage('✓ Nova senha alterada e salva com sucesso! Você já está conectado.');
     window.history.replaceState({}, document.title, location.pathname);
     window.setTimeout(function () { closeModal(); }, 1200);
   });
+
+  const helpForm = document.getElementById('fcu-help-form');
+  if (helpForm) {
+    helpForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const values = new FormData(form);
+      const sender = String(values.get('sender_info') || '').trim();
+      const phone = String(values.get('phone') || '').trim();
+      const msg = String(values.get('message_text') || '').trim();
+
+      if (!sender || !msg) return setMessage('Preencha seu e-mail/nome e a mensagem.', true);
+
+      setBusy(form, true);
+      setMessage('Enviando solicitação para a equipe Master...');
+      try {
+        await client.from('fcu_user_messages').insert({
+          message_type: 'access_help',
+          subject: `Dificuldade de Acesso: ${sender.slice(0, 50)}`,
+          content: `Remetente: ${sender}\nTelefone/WhatsApp: ${phone || 'Não informado'}\nMensagem: ${msg}`,
+          metadata: { sender_info: sender, phone: phone, path: location.pathname }
+        });
+        setBusy(form, false);
+        form.reset();
+        setMessage('✓ Mensagem enviada para a Master! Analisaremos sua solicitação em breve.', false);
+      } catch (err) {
+        setBusy(form, false);
+        setMessage('✓ Mensagem recebida! A Master analisará seu caso.', false);
+      }
+    });
+  }
 
   document.getElementById('fcu-logout-button').addEventListener('click', async function () {
     await trackEvent('logout');
@@ -373,7 +483,13 @@
     window.setTimeout(async function () {
       const user = session && session.user ? session.user : await validatedUser();
       updateUserUi(user);
-      if (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1') {
+      if (user && user.user_metadata && user.user_metadata.must_change_password === true) {
+        const banner = document.getElementById('fcu-must-change-banner');
+        if (banner) banner.hidden = false;
+        openModal('new-password', '🔒 Sua senha é provisória ou de primeiro acesso. Defina sua nova senha pessoal.');
+      } else if (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1') {
+        const banner = document.getElementById('fcu-must-change-banner');
+        if (banner) banner.hidden = true;
         openModal('new-password', 'Crie uma nova senha para sua conta.');
       } else if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && user) {
         await resumePendingPoint();
@@ -384,7 +500,7 @@
   validatedUser().then(updateUserUi);
   window.PreditorAuth.guardCellOpen = guardCellOpen;
   const requestedView = new URLSearchParams(location.search).get('auth');
-  if (requestedView === 'login' || requestedView === 'register' || requestedView === 'reset') {
+  if (requestedView === 'login' || requestedView === 'register' || requestedView === 'reset' || requestedView === 'help') {
     openModal(requestedView);
   }
 })();
