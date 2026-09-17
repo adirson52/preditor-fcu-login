@@ -385,15 +385,18 @@
 
     setBusy(form, true);
     setMessage('Criando sua conta e liberando acesso...');
-    const result = await client.auth.signUp({
+    const fullName = String(values.get('full_name') || '').trim();
+    const institution = String(values.get('institution') || '').trim();
+
+    let result = await client.auth.signUp({
       email: email,
       password: password,
       options: {
         emailRedirectTo: location.origin + location.pathname,
         data: {
           registration_context: 'fcu_pilot',
-          full_name: String(values.get('full_name') || '').trim(),
-          institution: String(values.get('institution') || '').trim(),
+          full_name: fullName,
+          institution: institution,
           terms_version: TERMS_VERSION,
           terms_accepted: values.get('terms') === 'on',
           privacy_acknowledged: values.get('privacy') === 'on'
@@ -402,15 +405,37 @@
     });
 
     if (result.error) {
-      setBusy(form, false);
-      let errMsg = result.error.message || '';
-      if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
-        errMsg = 'A senha deve ter no mínimo 6 dígitos ou caracteres.';
+      const errText = String(result.error.message || '');
+      if (errText.includes('confirmation email') || errText.includes('email_provider') || errText.includes('disabled') || errText.includes('rate limit')) {
+        try {
+          const apiRes = await fetch('https://preditor-fcu-master.vercel.app/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, full_name: fullName, institution })
+          });
+          const apiData = await apiRes.json();
+          if (!apiRes.ok || !apiData.ok) {
+            setBusy(form, false);
+            return setMessage('Não foi possível concluir o cadastro: ' + (apiData.error || 'Erro ao registrar usuário.'), true);
+          }
+          result = { error: null, data: { user: { email }, session: null } };
+        } catch (_) {
+          setBusy(form, false);
+          return setMessage('Não foi possível concluir o cadastro. Verifique sua conexão e tente novamente.', true);
+        }
+      } else {
+        setBusy(form, false);
+        let errMsg = errText;
+        if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
+          errMsg = 'A senha deve ter no mínimo 6 dígitos ou caracteres.';
+        } else if (errMsg.includes('already registered') || errMsg.includes('duplicate')) {
+          errMsg = 'Este e-mail já está cadastrado. Você pode entrar com sua senha ou recuperá-la.';
+        }
+        return setMessage('Não foi possível concluir o cadastro: ' + errMsg, true);
       }
-      return setMessage('Não foi possível concluir o cadastro: ' + errMsg, true);
     }
 
-    if (result.data.session) {
+    if (result.data && result.data.session) {
       setBusy(form, false);
       updateUserUi(result.data.user);
       setMessage('Conta criada e acesso liberado!');
