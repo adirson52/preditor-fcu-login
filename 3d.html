@@ -182,7 +182,7 @@
     const initialZoom = Number.isFinite(urlZoom) ? Math.max(15, Math.min(19, urlZoom)) : 16.8;
     const loading = document.getElementById('loading');
     const loadingText = document.getElementById('loading-text');
-    let selectedCellId = params.get('cell') || '';
+    let selectedCellId = params.get('cell') || params.get('cellId') || params.get('cell_id') || params.get('id_celula') || '';
     let selectedLat = hasUrlCenter ? urlLat : null;
     let selectedLng = hasUrlCenter ? urlLng : null;
     let selectedMarker = null;

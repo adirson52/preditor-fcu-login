@@ -23,7 +23,12 @@
 
   const CLASS_KEYS = ['atencao_prioritaria', 'atencao', 'demais_areas', 'outro'];
   const LAB_MODE = false;
-  const LOCAL_STORAGE_KEY = 'preditor_fcu_local_perceptions_v2';
+  const LOCAL_STORAGE_KEY = 'preditor_fcu_local_perceptions_v3';
+  try {
+    localStorage.removeItem('preditor_fcu_local_perceptions_v1');
+    localStorage.removeItem('preditor_fcu_local_perceptions_v2');
+    localStorage.removeItem('fcu_perceptions_v1');
+  } catch (_) {}
 
   let map = null, db = null, drawing = false, dragging = false, geometryEditing = false, gridMode = false;
   let points = [], originalPoints = [], selectedVertex = -1, draft = null, editingId = null, editingRecord = null;
@@ -809,8 +814,8 @@
       features: features
     };
 
-    window.PreditorTelemetry?.track('perception_export_gpkg', { area: area || 'all', format: format });
-    const ext = format === 'gpkg' ? 'gpkg.json' : format === 'json' ? 'json' : 'geojson';
+    window.PreditorTelemetry?.track('perception_export_qgis', { area: area || 'all', format: format });
+    const ext = format === 'json' ? 'json' : 'geojson';
     const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1253,16 +1258,15 @@
         <div>
           <div class="fcu-account-card-head">
             <h3 class="fcu-account-card-title">🗺️ Central de Exportação QGIS / SIG</h3>
-            <span class="fcu-qgis-attr-tag">GeoJSON / GPKG</span>
+            <span class="fcu-qgis-attr-tag">GeoJSON / SIG</span>
           </div>
           <p class="fcu-account-card-desc">Baixe todas as suas percepções territoriais prontas para uso em SIG com atributos completos de área (ha), perímetro (km), vértices, validação e datas.</p>
 
           <div class="fcu-qgis-filter-grid">
             <label class="fcu-qgis-field">Formato do Arquivo
               <select id="fcu-exp-format">
-                <option value="geojson">GeoJSON / QGIS (.geojson)</option>
-                <option value="gpkg">GeoPackage / QGIS (.gpkg.json)</option>
-                <option value="json">FeatureCollection (.json)</option>
+                <option value="geojson" selected>GeoJSON / QGIS (.geojson)</option>
+                <option value="json">GeoJSON / QGIS (.json)</option>
               </select>
             </label>
 

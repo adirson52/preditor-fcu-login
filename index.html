@@ -4922,6 +4922,8 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 
   window.__rfOpenExternalSelectedCell = openExternalSelectedCell;
+  window.PreditorApp = window.PreditorApp || (typeof App !== 'undefined' ? App : {});
+  window.PreditorApp.selectCell = openExternalSelectedCell;
 
   function createLookupChip(record) {
     const el = document.createElement('div');
@@ -6274,21 +6276,47 @@ window.addEventListener('unhandledrejection', function(event) {
 
 <script id="real-3d-map-link-script">
 (function() {
-  function openIncoming3dSelection() {
+  function getIncomingCellInfo() {
     const query = new URLSearchParams(window.location.search);
-    const cellId = query.get('cell');
+    const cellId = query.get('cell') || query.get('cellId') || query.get('cell_id') || query.get('id_celula') || query.get('celula');
+    const area = query.get('area') || query.get('area_id') || query.get('polo') || '';
+    if (cellId) return { cellId: cellId.trim(), area: area.trim() };
+
+    const hash = window.location.hash || '';
+    const hashMatch = hash.match(/#\/?(?:cell|celula)\/([^\/?&]+)/i) || hash.match(/#\/?(?:cell|cellId|cell_id|id_celula)=([^&]+)/i);
+    if (hashMatch) {
+      return { cellId: decodeURIComponent(hashMatch[1]).trim(), area: area.trim() };
+    }
+    return null;
+  }
+
+  function triggerSelection(cellId, area) {
     if (!cellId) return;
     let selectionAttempts = 0;
     const selectionTimer = window.setInterval(function() {
       selectionAttempts += 1;
       if (typeof window.__rfOpenExternalSelectedCell !== 'function' || typeof App === 'undefined' || !App.data || !App.map) {
-        if (selectionAttempts > 100) window.clearInterval(selectionTimer);
+        if (selectionAttempts > 120) window.clearInterval(selectionTimer);
         return;
       }
       window.clearInterval(selectionTimer);
-      window.__rfOpenExternalSelectedCell(cellId, query.get('area') || '');
+      window.__rfOpenExternalSelectedCell(cellId, area || '');
     }, 120);
   }
+
+  function openIncoming3dSelection() {
+    const incoming = getIncomingCellInfo();
+    if (incoming) triggerSelection(incoming.cellId, incoming.area);
+  }
+
+  window.addEventListener('preditor:select-cell', function(e) {
+    const d = e.detail || {};
+    const cid = d.cellId || d.cell || d.id_celula || d.cell_id;
+    if (cid) triggerSelection(String(cid).trim(), d.area || '');
+  });
+
+  window.addEventListener('hashchange', openIncoming3dSelection);
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openIncoming3dSelection, {once: true});
   else openIncoming3dSelection();
 })();
@@ -7261,7 +7289,7 @@ window.addEventListener('unhandledrejection', function(event) {
 <script src="telemetry.js?v=2026-09-10.7" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js" defer></script>
 <script src="auth.js?v=2026-09-17.10" defer></script>
-<script src="perception.js?v=2026-09-18.1" defer></script>
+<script src="perception.js?v=2026-09-18.2" defer></script>
 </body>
 
 </html>
