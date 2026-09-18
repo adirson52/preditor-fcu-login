@@ -143,8 +143,25 @@
   font: 750 13px/1.4 Inter, system-ui, sans-serif;
   cursor: pointer;
 }
-.fcu-auth-message { min-height: 21px; margin: 12px 0 0; color: #315568; font-weight: 650; }
-.fcu-auth-message.is-error { color: #a22b2b; }
+.fcu-auth-message {
+  min-height: 21px;
+  margin: 10px 0 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.fcu-auth-message:empty { display: none; }
+.fcu-auth-message.is-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
 .fcu-auth-demo-note {
   position: fixed;
   right: 18px;

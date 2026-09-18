@@ -73,8 +73,7 @@
             <input name="full_name" type="text" autocomplete="name" minlength="2" maxlength="150" required>
           </label>
           <label class="fcu-auth-field">E-mail de acesso
-            <input name="email" type="email" autocomplete="email" placeholder="voce@exemplo.com, @gmail.com, @ibge.gov.br..." required>
-            <small>Aceitamos e-mails de instituições, Gmail, Hotmail, Outlook, IBGE, universidades, etc.</small>
+            <input name="email" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required>
           </label>
           <label class="fcu-auth-field">Instituição / Organização
             <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ex.: IBGE, Prefeitura, Universidade, Autônomo..." required>
@@ -158,6 +157,11 @@
   function setMessage(text, isError) {
     message.textContent = text || '';
     message.classList.toggle('is-error', !!isError);
+    if (text) {
+      try {
+        message.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (_) {}
+    }
   }
 
   function setBusy(form, busy) {
@@ -388,44 +392,44 @@
     const fullName = String(values.get('full_name') || '').trim();
     const institution = String(values.get('institution') || '').trim();
 
-    let result = await client.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        emailRedirectTo: location.origin + location.pathname,
-        data: {
-          registration_context: 'fcu_pilot',
-          full_name: fullName,
-          institution: institution,
-          terms_version: TERMS_VERSION,
-          terms_accepted: values.get('terms') === 'on',
-          privacy_acknowledged: values.get('privacy') === 'on'
-        }
-      }
-    });
+    let createdSuccess = false;
 
-    if (result.error) {
-      const errText = String(result.error.message || '');
-      if (errText.includes('confirmation email') || errText.includes('email_provider') || errText.includes('disabled') || errText.includes('rate limit')) {
-        try {
-          const apiRes = await fetch('https://preditor-fcu-master.vercel.app/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, full_name: fullName, institution })
-          });
-          const apiData = await apiRes.json();
-          if (!apiRes.ok || !apiData.ok) {
-            setBusy(form, false);
-            return setMessage('Não foi possível concluir o cadastro: ' + (apiData.error || 'Erro ao registrar usuário.'), true);
-          }
-          result = { error: null, data: { user: { email }, session: null } };
-        } catch (_) {
-          setBusy(form, false);
-          return setMessage('Não foi possível concluir o cadastro. Verifique sua conexão e tente novamente.', true);
-        }
-      } else {
+    // 1. Try Master API registration first (auto-confirms user, no email sent)
+    try {
+      const apiRes = await fetch('https://preditor-fcu-master.vercel.app/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, full_name: fullName, institution })
+      });
+      const apiData = await apiRes.json();
+      if (apiRes.ok && apiData.ok) {
+        createdSuccess = true;
+      } else if (apiData && apiData.error && (apiData.error.includes('já está cadastrado') || apiData.error.includes('already registered'))) {
         setBusy(form, false);
-        let errMsg = errText;
+        return setMessage('Este e-mail já está cadastrado. Você pode entrar com sua senha ou recuperá-la.', true);
+      }
+    } catch (_) {}
+
+    // 2. Fallback to Supabase Auth signUp if Master API is offline
+    if (!createdSuccess) {
+      const result = await client.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          emailRedirectTo: location.origin + location.pathname,
+          data: {
+            registration_context: 'fcu_pilot',
+            full_name: fullName,
+            institution: institution,
+            terms_version: TERMS_VERSION,
+            terms_accepted: values.get('terms') === 'on',
+            privacy_acknowledged: values.get('privacy') === 'on'
+          }
+        }
+      });
+      if (result.error && !String(result.error.message).includes('confirmation email')) {
+        setBusy(form, false);
+        let errMsg = String(result.error.message || '');
         if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
           errMsg = 'A senha deve ter no mínimo 6 dígitos ou caracteres.';
         } else if (errMsg.includes('already registered') || errMsg.includes('duplicate')) {
@@ -435,25 +439,18 @@
       }
     }
 
-    if (result.data && result.data.session) {
-      setBusy(form, false);
-      updateUserUi(result.data.user);
-      setMessage('Conta criada e acesso liberado!');
+    // 3. Auto-login immediately
+    const autoLogin = await client.auth.signInWithPassword({ email, password });
+    setBusy(form, false);
+    if (autoLogin.data && autoLogin.data.session) {
+      updateUserUi(autoLogin.data.user);
+      setMessage('✓ Conta criada e acesso liberado!');
       await resumePendingPoint();
       closeModal();
     } else {
-      const autoLogin = await client.auth.signInWithPassword({ email, password });
-      setBusy(form, false);
-      if (autoLogin.data && autoLogin.data.session) {
-        updateUserUi(autoLogin.data.user);
-        setMessage('Conta criada e acesso liberado!');
-        await resumePendingPoint();
-        closeModal();
-      } else {
-        form.reset();
-        setMessage('Cadastro concluído com sucesso! Você já pode entrar com seu e-mail e senha.');
-        setView('login');
-      }
+      form.reset();
+      setMessage('✓ Cadastro concluído com sucesso! Você já pode entrar com seu e-mail e senha.');
+      setView('login');
     }
   });
 
