@@ -807,6 +807,226 @@
       };
     });
 
+    function createGeoPackageBinaryGeometry(coords) {
+      if (!coords || coords.length < 3) return null;
+      const ring = [...coords];
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push([first[0], first[1]]);
+      }
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+
+      const totalLen = 40 + 13 + ring.length * 16;
+      const buf = new Uint8Array(totalLen);
+      const view = new DataView(buf.buffer);
+
+      let offset = 0;
+      buf[offset++] = 0x47; // 'G'
+      buf[offset++] = 0x50; // 'P'
+      buf[offset++] = 0x00; // version 0
+      buf[offset++] = 0x03; // flags: little endian + envelope 1 (32 bytes)
+      view.setUint32(offset, 4326, true); offset += 4;
+
+      view.setFloat64(offset, minX, true); offset += 8;
+      view.setFloat64(offset, maxX, true); offset += 8;
+      view.setFloat64(offset, minY, true); offset += 8;
+      view.setFloat64(offset, maxY, true); offset += 8;
+
+      buf[offset++] = 0x01; // little endian
+      view.setUint32(offset, 3, true); offset += 4; // WKBPolygon
+      view.setUint32(offset, 1, true); offset += 4; // 1 ring
+      view.setUint32(offset, ring.length, true); offset += 4; // num points
+
+      for (const [x, y] of ring) {
+        view.setFloat64(offset, x, true); offset += 8;
+        view.setFloat64(offset, y, true); offset += 8;
+      }
+
+      return { bytes: buf, minX, maxX, minY, maxY };
+    }
+
+    async function generateGeoPackageBlob(featuresList) {
+      if (typeof window.initSqlJs !== 'function') {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js';
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      const SQL = await window.initSqlJs({
+        locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/${file}`
+      });
+
+      const gpkgDb = new SQL.Database();
+      gpkgDb.run('PRAGMA application_id = 1196444487;');
+      gpkgDb.run('PRAGMA user_version = 10300;');
+
+      gpkgDb.run(`
+        CREATE TABLE gpkg_spatial_ref_sys (
+          srs_name TEXT NOT NULL,
+          srs_id INTEGER NOT NULL PRIMARY KEY,
+          organization TEXT NOT NULL,
+          organization_coordsys_id INTEGER NOT NULL,
+          definition TEXT NOT NULL,
+          description TEXT
+        );
+      `);
+
+      gpkgDb.run(`
+        INSERT INTO gpkg_spatial_ref_sys VALUES
+        ('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined cartesian coordinate reference system'),
+        ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system'),
+        ('WGS 84 geodetic', 4326, 'EPSG', 4326, 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid');
+      `);
+
+      gpkgDb.run(`
+        CREATE TABLE gpkg_contents (
+          table_name TEXT NOT NULL PRIMARY KEY,
+          data_type TEXT NOT NULL,
+          identifier TEXT UNIQUE,
+          description TEXT DEFAULT '',
+          last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          min_x DOUBLE,
+          min_y DOUBLE,
+          max_x DOUBLE,
+          max_y DOUBLE,
+          srs_id INTEGER,
+          CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );
+      `);
+
+      gpkgDb.run(`
+        CREATE TABLE gpkg_geometry_columns (
+          table_name TEXT NOT NULL,
+          column_name TEXT NOT NULL,
+          geometry_type_name TEXT NOT NULL,
+          srs_id INTEGER NOT NULL,
+          z TINYINT NOT NULL,
+          m TINYINT NOT NULL,
+          CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+          CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+          CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );
+      `);
+
+      gpkgDb.run(`
+        CREATE TABLE percepcoes_fcu (
+          fid INTEGER PRIMARY KEY AUTOINCREMENT,
+          geom BLOB,
+          id TEXT,
+          usuario_nome TEXT,
+          usuario_email TEXT,
+          instituicao TEXT,
+          percepcao_titulo TEXT,
+          classe_codigo TEXT,
+          classe_rotulo TEXT,
+          tipo_acao TEXT,
+          area_estudo TEXT,
+          celula_id TEXT,
+          area_hectares REAL,
+          perimetro_km REAL,
+          qtd_vertices INTEGER,
+          validacao_campo TEXT,
+          conhecimento_nivel TEXT,
+          fontes_conhecimento TEXT,
+          observacoes TEXT,
+          criado_em TEXT
+        );
+      `);
+
+      let gMinX = Infinity, gMaxX = -Infinity, gMinY = Infinity, gMaxY = -Infinity;
+
+      for (const f of featuresList) {
+        const coords = (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0]) || [];
+        const geomData = createGeoPackageBinaryGeometry(coords);
+        if (!geomData) continue;
+
+        if (geomData.minX < gMinX) gMinX = geomData.minX;
+        if (geomData.maxX > gMaxX) gMaxX = geomData.maxX;
+        if (geomData.minY < gMinY) gMinY = geomData.minY;
+        if (geomData.maxY > gMaxY) gMaxY = geomData.maxY;
+
+        const p = f.properties || {};
+        gpkgDb.run(`
+          INSERT INTO percepcoes_fcu (
+            geom, id, usuario_nome, usuario_email, instituicao, percepcao_titulo,
+            classe_codigo, classe_rotulo, tipo_acao, area_estudo, celula_id,
+            area_hectares, perimetro_km, qtd_vertices, validacao_campo,
+            conhecimento_nivel, fontes_conhecimento, observacoes, criado_em
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          geomData.bytes,
+          String(p.id || ''),
+          String(p.usuario_nome || ''),
+          String(p.usuario_email || ''),
+          String(p.instituicao || ''),
+          String(p.percepcao_titulo || ''),
+          String(p.classe_codigo || ''),
+          String(p.classe_rotulo || ''),
+          String(p.tipo_acao || ''),
+          String(p.area_estudo || ''),
+          String(p.celula_id || ''),
+          Number(p.area_hectares || 0),
+          Number(p.perimetro_km || 0),
+          Number(p.qtd_vertices || 0),
+          String(p.validacao_campo || ''),
+          String(p.conhecimento_nivel || ''),
+          String(p.fontes_conhecimento || ''),
+          String(p.observacoes || ''),
+          String(p.criado_em || '')
+        ]);
+      }
+
+      if (gMinX === Infinity) {
+        gMinX = -180; gMaxX = 180; gMinY = -90; gMaxY = 90;
+      }
+
+      gpkgDb.run(`
+        INSERT INTO gpkg_contents (table_name, data_type, identifier, description, min_x, min_y, max_x, max_y, srs_id)
+        VALUES ('percepcoes_fcu', 'features', 'percepcoes_fcu', 'Percepções territoriais do Preditor FCU', ?, ?, ?, ?, 4326)
+      `, [gMinX, gMinY, gMaxX, gMaxY]);
+
+      gpkgDb.run(`
+        INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m)
+        VALUES ('percepcoes_fcu', 'geom', 'POLYGON', 4326, 0, 0)
+      `);
+
+      const u8 = gpkgDb.export();
+      return new Blob([u8], { type: 'application/geopackage+sqlite3' });
+    }
+
+    if (format === 'gpkg') {
+      status('Compilando GeoPackage (.gpkg) nativo para QGIS...', false);
+      try {
+        const gpkgBlob = await generateGeoPackageBlob(features);
+        const url = URL.createObjectURL(gpkgBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `percepcoes_fcu_qgis_${new Date().toISOString().slice(0, 10)}.gpkg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        window.PreditorTelemetry?.track('perception_export_gpkg', { area: area || 'all', count: features.length });
+        status('✓ GeoPackage (.gpkg) gerado com sucesso para o QGIS!');
+        return;
+      } catch (err) {
+        console.error('GeoPackage generation error:', err);
+        status('Aviso: falha ao gerar GPKG local, gerando GeoJSON como alternativa.', true);
+      }
+    }
+
     const geojson = {
       type: 'FeatureCollection',
       name: 'percepcoes_fcu_qgis',
@@ -814,7 +1034,7 @@
       features: features
     };
 
-    window.PreditorTelemetry?.track('perception_export_qgis', { area: area || 'all', format: format });
+    window.PreditorTelemetry?.track('perception_export_geojson', { area: area || 'all', format: format });
     const ext = format === 'json' ? 'json' : 'geojson';
     const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -1258,15 +1478,16 @@
         <div>
           <div class="fcu-account-card-head">
             <h3 class="fcu-account-card-title">🗺️ Central de Exportação QGIS / SIG</h3>
-            <span class="fcu-qgis-attr-tag">GeoJSON / SIG</span>
+            <span class="fcu-qgis-attr-tag">GeoPackage (.gpkg) / GeoJSON</span>
           </div>
           <p class="fcu-account-card-desc">Baixe todas as suas percepções territoriais prontas para uso em SIG com atributos completos de área (ha), perímetro (km), vértices, validação e datas.</p>
 
           <div class="fcu-qgis-filter-grid">
             <label class="fcu-qgis-field">Formato do Arquivo
               <select id="fcu-exp-format">
-                <option value="geojson" selected>GeoJSON / QGIS (.geojson)</option>
-                <option value="json">GeoJSON / QGIS (.json)</option>
+                <option value="gpkg" selected>GeoPackage / QGIS (.gpkg)</option>
+                <option value="geojson">GeoJSON / QGIS (.geojson)</option>
+                <option value="json">GeoJSON (.json)</option>
               </select>
             </label>
 
