@@ -60,8 +60,8 @@
           <label class="fcu-auth-field">E-mail
             <input name="email" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Senha (mínimo 6 dígitos)
-            <input name="password" type="password" autocomplete="current-password" minlength="6" required>
+          <label class="fcu-auth-field fcu-auth-password">Senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="current-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <button class="fcu-auth-submit" type="submit">Entrar</button>
@@ -78,8 +78,8 @@
           <label class="fcu-auth-field">Instituição / Organização
             <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ex.: IBGE, Prefeitura, Universidade, Autônomo..." required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Crie sua senha (mínimo 6 dígitos)
-            <input name="password" type="password" autocomplete="new-password" minlength="6" required>
+          <label class="fcu-auth-field fcu-auth-password">Crie sua senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="new-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <label class="fcu-auth-check">
@@ -103,10 +103,10 @@
 
         <form class="fcu-auth-view" id="fcu-new-password-form" data-view="new-password" hidden>
           <div id="fcu-must-change-banner" class="fcu-auth-banner-must-change" hidden style="padding:10px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:12px;font-weight:700;margin-bottom:12px;">
-            🔒 Primeiro acesso ou redefinição pela equipe: crie sua nova senha pessoal de 6 dígitos ou mais para continuar.
+            🔒 Primeiro acesso ou redefinição pela equipe: crie sua nova senha pessoal de 4 dígitos ou mais para continuar.
           </div>
-          <label class="fcu-auth-field fcu-auth-password">Nova senha (mínimo 6 dígitos)
-            <input name="password" type="password" autocomplete="new-password" minlength="6" required>
+          <label class="fcu-auth-field fcu-auth-password">Nova senha (mínimo 4 dígitos)
+            <input name="password" type="password" autocomplete="new-password" minlength="4" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
           <button class="fcu-auth-submit" type="submit">Salvar nova senha</button>
@@ -353,9 +353,9 @@
     const values = new FormData(form);
     const email = String(values.get('email') || '').trim();
     const password = String(values.get('password') || '');
-    if (!password || password.length < 6) {
+    if (!password || password.length < 4) {
       setBusy(form, false);
-      return setMessage('A senha deve ter no mínimo 6 dígitos.', true);
+      return setMessage('A senha deve ter no mínimo 4 dígitos.', true);
     }
     const result = await client.auth.signInWithPassword({ email, password });
     setBusy(form, false);
@@ -363,7 +363,7 @@
       let msg = result.error.message || 'Confira e-mail e senha.';
       if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
       else if (msg.includes('Email not confirmed')) msg = 'E-mail ainda não confirmado. Verifique a caixa de entrada do seu e-mail.';
-      else if (msg.includes('Password should be at least 6 characters') || msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 6 dígitos.';
+      else if (msg.includes('Password should be at least') || msg.includes('at least 4 characters') || msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 4 dígitos.';
       return setMessage('Não foi possível entrar: ' + msg, true);
     }
     updateUserUi(result.data.user);
@@ -383,8 +383,8 @@
     if (!isValidEmail(email)) {
       return setMessage('Informe um e-mail válido (ex.: nome@gmail.com, @hotmail.com, @ibge.gov.br, @universidade.edu.br). Domínios inválidos não são aceitos.', true);
     }
-    if (!password || password.length < 6) {
-      return setMessage('A senha deve ter no mínimo 6 dígitos ou caracteres.', true);
+    if (!password || password.length < 4) {
+      return setMessage('A senha deve ter no mínimo 4 dígitos ou caracteres.', true);
     }
 
     setBusy(form, true);
@@ -471,8 +471,8 @@
     event.preventDefault();
     const form = event.currentTarget;
     const password = String(new FormData(form).get('password') || '');
-    if (!password || password.length < 6) {
-      return setMessage('A nova senha deve ter no mínimo 6 dígitos.', true);
+    if (!password || password.length < 4) {
+      return setMessage('A nova senha deve ter no mínimo 4 dígitos.', true);
     }
     setBusy(form, true);
     const result = await client.auth.updateUser({
@@ -482,8 +482,8 @@
     setBusy(form, false);
     if (result.error) {
       let errMsg = result.error.message || '';
-      if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
-        errMsg = 'A senha deve ter no mínimo 6 dígitos.';
+      if (errMsg.includes('Password should be at least') || errMsg.includes('at least 4 characters') || errMsg.includes('at least 6 characters')) {
+        errMsg = 'A senha deve ter no mínimo 4 dígitos.';
       }
       return setMessage('Não foi possível salvar a nova senha: ' + errMsg, true);
     }
