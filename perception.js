@@ -1707,7 +1707,8 @@
       exportQGIS: exportGeoJSONWithFilters,
       syncNow: syncPendingItems,
       isDrawing: () => drawing || geometryEditing,
-      isOpen: () => $('#fcu-perception-panel') && $('#fcu-perception-panel').classList.contains('is-open')
+      isOpen: () => $('#fcu-perception-panel') && $('#fcu-perception-panel').classList.contains('is-open'),
+      renderLegendControl: renderLegendControl
     };
 
     return true;

@@ -3631,6 +3631,7 @@ window.addEventListener('unhandledrejection', function(event) {
     if (key === 'attention') return '#f28e2b';
     if (key === 'mappedFcu') return '#374151';
     if (key === 'mappedLow') return '#cbd5e1';
+    if (key === 'other') return '#94a3b8';
     return 'rgba(0,0,0,0)';
   }
 
@@ -3646,6 +3647,7 @@ window.addEventListener('unhandledrejection', function(event) {
     const classColor = finalPointClassColor(key);
     if (key === 'priority') return {color: classColor, radius: FINAL_POINT_RADIUS, alpha: 0.92, key};
     if (key === 'attention') return {color: classColor, radius: FINAL_POINT_RADIUS, alpha: 0.88, key};
+    if (key === 'other') return {color: classColor, radius: FINAL_POINT_RADIUS * 0.85, alpha: 0.35, stroke: true, key: 'other'};
     return {color: classColor, radius: FINAL_POINT_RADIUS, alpha: 0, key: 'other'};
   }
 
@@ -4442,11 +4444,49 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 
   function redrawFinalPointLayers() {
-    if (typeof App === 'undefined') return;
-    if (App.qmlPointsLayer && App.qmlPointsLayer.redraw) App.qmlPointsLayer.redraw();
+    if (typeof App === 'undefined' || !App.map) return;
+    if (App.qmlPointsLayer && App.map.hasLayer(App.qmlPointsLayer) && App.qmlPointsLayer.redraw) {
+      App.qmlPointsLayer.redraw();
+    }
     Object.values(App.priorityPointsLayers || {}).forEach(layer => {
-      if (layer && layer.redraw) layer.redraw();
+      if (layer && App.map.hasLayer(layer) && layer.redraw) {
+        layer.redraw();
+      }
     });
+  }
+
+  function syncPointLayerVisibility(key) {
+    if (typeof App === 'undefined' || !App.map) return;
+    if (!key || key === 'ranking') {
+      const showQml = FINAL_RANKING_STATE.visible;
+      if (App.overviewQmlLayer) {
+        if (showQml && !App.map.hasLayer(App.overviewQmlLayer)) App.overviewQmlLayer.addTo(App.map);
+        else if (!showQml && App.map.hasLayer(App.overviewQmlLayer)) App.map.removeLayer(App.overviewQmlLayer);
+      }
+      if (App.qmlPointsLayer) {
+        if (showQml && !App.map.hasLayer(App.qmlPointsLayer)) App.qmlPointsLayer.addTo(App.map);
+        else if (!showQml && App.map.hasLayer(App.qmlPointsLayer)) App.map.removeLayer(App.qmlPointsLayer);
+      }
+    }
+    if (!key || (App.priorityPointsLayers && Object.prototype.hasOwnProperty.call(App.priorityPointsLayers, key))) {
+      const keys = key ? [key] : ['priority', 'attention', 'other'];
+      keys.forEach(k => {
+        const show = finalClassVisible(k);
+        if (App.overviewPriorityLayers && App.overviewPriorityLayers[k]) {
+          const l = App.overviewPriorityLayers[k];
+          if (show && !App.map.hasLayer(l)) l.addTo(App.map);
+          else if (!show && App.map.hasLayer(l)) App.map.removeLayer(l);
+        }
+        if (App.priorityPointsLayers && App.priorityPointsLayers[k]) {
+          const l = App.priorityPointsLayers[k];
+          if (show && !App.map.hasLayer(l)) l.addTo(App.map);
+          else if (!show && App.map.hasLayer(l)) App.map.removeLayer(l);
+        }
+      });
+    }
+    if (!key || key === 'mappedFcu' || key === 'mappedLow') {
+      refreshFcuPolygonsStyle();
+    }
   }
 
   function recenterSelectedSample(keepZoom = true) {
@@ -5634,12 +5674,19 @@ window.addEventListener('unhandledrejection', function(event) {
     const drawRadius = geometry.radius;
     ctx.beginPath();
     ctx.arc(x, y, drawRadius, 0, Math.PI * 2);
-    ctx.fillStyle = style.color;
-    const layerAlpha = style.mode !== 'qml' && (style.key === 'priority' || style.key === 'attention')
-      ? Math.max(0.62, style.alpha - Math.min(0.16, zoomBoost * 0.02))
-      : style.alpha;
-    ctx.globalAlpha = Math.min(1, layerAlpha * geometry.alpha);
-    ctx.fill();
+    if (style.stroke) {
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = Math.min(1, (style.alpha || 0.35) * geometry.alpha);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = style.color;
+      const layerAlpha = style.mode !== 'qml' && (style.key === 'priority' || style.key === 'attention')
+        ? Math.max(0.62, style.alpha - Math.min(0.16, zoomBoost * 0.02))
+        : style.alpha;
+      ctx.globalAlpha = Math.min(1, layerAlpha * geometry.alpha);
+      ctx.fill();
+    }
   }
 
   const AllPointsLayer = L.GridLayer.extend({
@@ -5733,13 +5780,24 @@ window.addEventListener('unhandledrejection', function(event) {
     );
   }
 
+  function updateLegendButtonVisual(div, key, active) {
+    if (!div) return false;
+    const btn = div.querySelector(`.legend-layer-toggle[data-layer="${key}"]`);
+    if (!btn) return false;
+    btn.className = `legend-layer-toggle ${active ? 'on' : 'off'}`;
+    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    btn.title = active ? 'ocultar camada' : 'mostrar camada';
+    btn.style.background = active ? 'transparent' : '#eef2f7';
+    btn.style.opacity = active ? '1' : '.56';
+    const indicator = btn.querySelector('span:last-child');
+    if (indicator) {
+      indicator.style.background = active ? '#16839f' : '#94a3b8';
+      indicator.style.boxShadow = `0 0 0 2px ${active ? 'rgba(22,131,159,.14)' : 'rgba(148,163,184,.12)'}`;
+    }
+    return true;
+  }
+
   function bindLegendToggle(div) {
-    const refreshFilteredLayers = () => {
-      refreshOverviewLayer();
-      refreshFcuCanvasLayer();
-      redrawFinalPointLayers();
-      refreshFcuPolygonsStyle();
-    };
     if (div.dataset.legendBound === '1') return;
     div.dataset.legendBound = '1';
     div.addEventListener('click', event => {
@@ -5757,14 +5815,17 @@ window.addEventListener('unhandledrejection', function(event) {
       event.preventDefault();
       event.stopPropagation();
       const key = layerButton.dataset.layer;
+      let active = false;
       if (key === 'ranking') {
         FINAL_RANKING_STATE.visible = !FINAL_RANKING_STATE.visible;
+        active = FINAL_RANKING_STATE.visible;
       } else if (key && !FINAL_LOCKED_HIDDEN_CLASSES[key]) {
         FINAL_VISIBLE_CLASSES[key] = FINAL_VISIBLE_CLASSES[key] === false;
+        active = FINAL_VISIBLE_CLASSES[key] !== false;
       }
       saveFinalLayerState();
-      refreshAllPointsLegend();
-      refreshFilteredLayers();
+      updateLegendButtonVisual(div, key, active);
+      syncPointLayerVisibility(key);
     });
   }
 
@@ -5774,6 +5835,9 @@ window.addEventListener('unhandledrejection', function(event) {
     const body = div.querySelector('.legend-body');
     const open = !!body && body.style.display !== 'none';
     div.innerHTML = allPointsLegendHtml(open);
+    if (window.PreditorPerception && typeof window.PreditorPerception.renderLegendControl === 'function') {
+      window.PreditorPerception.renderLegendControl();
+    }
   }
 
   window.__RF_LAYER_DEBUG__ = {
@@ -5782,11 +5846,9 @@ window.addEventListener('unhandledrejection', function(event) {
       if (key === 'ranking') FINAL_RANKING_STATE.visible = !!visible;
       else if (Object.prototype.hasOwnProperty.call(FINAL_VISIBLE_CLASSES, key)) FINAL_VISIBLE_CLASSES[key] = !!visible;
       saveFinalLayerState();
-      refreshAllPointsLegend();
-      refreshOverviewLayer();
-      refreshFcuCanvasLayer();
-      redrawFinalPointLayers();
-      refreshFcuPolygonsStyle();
+      const div = document.querySelector('.all-points-control');
+      if (div) updateLegendButtonVisual(div, key, !!visible);
+      syncPointLayerVisibility(key);
       return window.__RF_LAYER_DEBUG__.getState();
     }
   };
@@ -5872,7 +5934,7 @@ window.addEventListener('unhandledrejection', function(event) {
       for (const p of (data.p || [])) {
         const areaCol = p.a || fallbackAreaCol;
         const key = candidateClassKeyFromRank(actionRankingValue(p), areaCol);
-        const visibleByQml = FINAL_RANKING_STATE.visible && key !== 'other';
+        const visibleByQml = FINAL_RANKING_STATE.visible;
         const visibleByPriorityLayer = finalClassVisible(key);
         if (!visibleByQml && !visibleByPriorityLayer) continue;
         const pointPt = App.map.latLngToContainerPoint(L.latLng(Number(p.lat), Number(p.lng)));
@@ -5936,6 +5998,7 @@ window.addEventListener('unhandledrejection', function(event) {
       if (App.map) {
         App.qmlPointsLayer = new AllPointsLayer({
           tileSize: 256,
+          minZoom: TILE_Z,
           opacity: 0.92,
           zIndex: 460,
           renderMode: 'qml',
@@ -5943,12 +6006,15 @@ window.addEventListener('unhandledrejection', function(event) {
           updateWhenZooming: false,
           keepBuffer: 2
         });
-        App.qmlPointsLayer.addTo(App.map);
+        if (FINAL_RANKING_STATE.visible) {
+          App.qmlPointsLayer.addTo(App.map);
+        }
         App.allPointsLayer = App.qmlPointsLayer;
         App.priorityPointsLayers = {};
         ['priority', 'attention', 'other'].forEach((key, index) => {
           const layer = new AllPointsLayer({
             tileSize: 256,
+            minZoom: TILE_Z,
             opacity: 0.94,
             zIndex: 470 + index,
             renderMode: 'priority',
@@ -5958,7 +6024,9 @@ window.addEventListener('unhandledrejection', function(event) {
             keepBuffer: 2
           });
           App.priorityPointsLayers[key] = layer;
-          layer.addTo(App.map);
+          if (finalClassVisible(key)) {
+            layer.addTo(App.map);
+          }
         });
         App.map.options.closePopupOnClick = true;
         if (App.map.doubleClickZoom) App.map.doubleClickZoom.enable();
@@ -7193,7 +7261,7 @@ window.addEventListener('unhandledrejection', function(event) {
 <script src="telemetry.js?v=2026-09-10.7" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js" defer></script>
 <script src="auth.js?v=2026-09-17.10" defer></script>
-<script src="perception.js?v=2026-09-17.24" defer></script>
+<script src="perception.js?v=2026-09-18.1" defer></script>
 </body>
 
 </html>
