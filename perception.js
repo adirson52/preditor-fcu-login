@@ -221,6 +221,7 @@
     item._pending_versions = clone(queued).concat([{ revision: item._local_revision, payload: perceptionPayload(item) }]);
     item._server_updated_at = baseline && baseline._server_updated_at || null;
     item._server_version_count = latest && latest._server_version_count || 0;
+    item._server_count_updated_at = latest && latest._server_count_updated_at || null;
     item.version_count = Math.max((latest && latest.version_count || 0) + 1, item._server_version_count + item._pending_versions.length);
     item._history = mergeHistory(latest && latest._history || [], item._history || []);
     item._sync_status = latest && latest._sync_status === 'conflict' || previous && previous._sync_status === 'conflict' ? 'conflict' : 'pending';
@@ -318,11 +319,14 @@
           current = getLocalItems(id).find(x => x.id === item.id);
           if (!current) return false;
           const remaining = pendingOperations(current).filter(x => x.revision !== op.revision);
+          const knownCount = current._server_version_count || (current._server_updated_at ? Math.max(0, (current.version_count || 1) - pendingOperations(current).length) : 0);
+          const serverVersionCount = knownCount + (current._server_count_updated_at === server.updated_at ? 0 : 1);
           const acknowledged = {
             ...(remaining.length ? current : { ...current, ...server }),
             _server_updated_at: server.updated_at, _pending_versions: remaining,
             _sync_status: remaining.length ? 'pending' : 'synced', _conflict: null,
-            _server_version_count: (current._server_version_count || 0) + 1
+            _server_version_count: serverVersionCount, _server_count_updated_at: server.updated_at,
+            version_count: serverVersionCount + remaining.length
           };
           saveLocalItem(acknowledged, id);
         }
@@ -1990,7 +1994,7 @@
       if (!original || original._sync_status !== 'conflict' || (row.data && !owns(row.data, id))) return;
       const copyTitle = value => String(value || 'Percepção').slice(0, 100) + ' (cópia preservada)';
       const copy = { ...clone(original), id: generateUUID(), title: copyTitle(original.title),
-        _conflict: null, _sync_status: 'pending', _server_updated_at: null, _server_version_count: 0, _local_revision: generateUUID(),
+        _conflict: null, _sync_status: 'pending', _server_updated_at: null, _server_version_count: 0, _server_count_updated_at: null, _local_revision: generateUUID(),
         created_at: new Date().toISOString(), _conflict_origin_id: recordId };
       copy._pending_versions = pendingOperations(original).map(op => ({ revision: generateUUID(), payload: {
         ...op.payload, id: copy.id, title: copyTitle(op.payload.title), created_at: copy.created_at
@@ -2076,7 +2080,7 @@
             const serverCount = counts[serverItem.id] || existing?._server_version_count || 1;
             const queuedCount = existing && existing._sync_status !== 'synced' ? pendingOperations(existing).length : 0;
             const metadata = { _history: mergeHistory(existing?._history || [], histories.get(serverItem.id) || []),
-              _server_version_count: serverCount, version_count: serverCount + queuedCount };
+              _server_version_count: serverCount, _server_count_updated_at: serverItem.updated_at, version_count: serverCount + queuedCount };
             const responseIsOlder = existing && Date.parse(existing._server_updated_at) > Date.parse(serverItem.updated_at);
             if (existing && (existing._sync_status !== 'synced' || responseIsOlder)) {
               localMap.set(serverItem.id, { ...existing, ...metadata });

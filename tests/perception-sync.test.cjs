@@ -329,3 +329,16 @@ test('different offline geometry or survey snapshots at same version remain pres
   const merged = h.api.mergeHistory([first, alteredSurvey, alteredGeometry]);
   assert.equal(merged.length, 3);
 });
+
+test('acknowledging an already-counted cloud version does not increment it again', async () => {
+  const saved = perception({ updated_at: '2026-09-19T12:00:00.000Z' });
+  const h = harness({ rows: [saved] });
+  const pending = h.api.queue(perception());
+  pending._server_version_count = 1;
+  pending._server_count_updated_at = saved.updated_at;
+  pending.version_count = 2;
+  h.api.saveLocalItem(pending);
+  assert.equal(await h.api.syncSingleItemToSupabase(pending), true);
+  assert.equal(h.api.getLocalItems()[0].version_count, 1);
+  assert.equal(h.writes.length, 0);
+});
