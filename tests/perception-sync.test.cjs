@@ -75,7 +75,7 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
     renderLayers = () => {}; renderItemsUI = () => {}; closeProfilePanel = () => {}; status = () => {};
     globalThis.api = { getLocalItems, setLocalItems, saveLocalItem, markPending, syncSingleItemToSupabase,
       syncPendingItems, mergeHistory, load, preserveConflictCopy, perceptionPayload, resetForAccount,
-      readAllOwned, ownerId, generateUUID, getSyncStatus,
+      readAllOwned, ownerId, generateUUID, getSyncStatus, getQuarantinedItems, recoverQuarantinedCopy, refreshDeviceCache, stageDraft,
       visible: () => items, queue: (item, previous) => { markPending(item, previous); saveLocalItem(item); return item; },
       setOwner: id => { authOwner = id; window.PreditorAuth.user = id ? { id, user_metadata: {} } : null; resetForAccount(id); }
     };
@@ -90,7 +90,7 @@ test('legacy caches migrate only explicit owner records and remain untouched', (
   const h = harness({ legacy });
   const original = h.storage.get(OLD_KEY);
   assert.equal(h.api.getLocalItems().length, 1);
-  assert.equal(h.api.getLocalItems()[0]._sync_status, 'pending');
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'quarantined');
   h.api.setOwner(USER_B);
   assert.equal(h.api.getLocalItems().length, 1);
   assert.equal(h.api.getLocalItems()[0].user_id, USER_B);
@@ -219,9 +219,10 @@ test('full cloud history merges with local history without dropping snapshots', 
   h.api.saveLocalItem({ ...current, _history: [{ title: 'Rascunho offline', geometry: current.geometry }] });
   await h.api.load();
   const saved = h.api.getLocalItems()[0];
-  assert.equal(saved._history.length, 2);
+  assert.equal(saved._history.length, 1);
   assert.ok(saved._history.some(x => x.title === 'Anterior' && x.geometry));
-  assert.ok(saved._history.some(x => x.title === 'Rascunho offline'));
+  assert.ok(saved._retired_history.some(x => x.title === 'Rascunho offline'));
+  assert.ok(h.api.getQuarantinedItems().some(x => x.title === 'Rascunho offline'));
   assert.ok(h.calls.every(q => q.filters.some(([k,v]) => k === 'user_id' && v === USER_A)));
 });
 
@@ -373,4 +374,299 @@ test('denied or unavailable account verification does not drain pending revision
   assert.equal(h.api.getLocalItems()[0]._pending_versions.length, 1);
   assert.equal(h.writes.length, 0);
   assert.equal(h.calls.length, 0);
+});
+
+const baselineRow = extra => perception({ updated_at: '2026-09-19T10:00:00.000Z', _server_updated_at: '2026-09-19T10:00:00.000Z', _sync_status: 'synced', ...extra });
+
+test('cloud deletion quarantines old synced cache without showing or re-inserting it', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow());
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, true);
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'quarantined');
+  assert.equal(h.api.getSyncStatus().quarantined, 1);
+  await h.api.syncPendingItems();
+  assert.equal(h.writes.length, 0);
+});
+
+test('legacy synced and pending records never auto-insert after remote cleanup', async () => {
+  for (const state of ['synced', 'pending']) {
+    const legacy = perception({ _sync_status: state, updated_at: '2026-09-14T10:00:00Z' });
+    const h = harness({ legacy: [legacy] });
+    const old = h.storage.get(OLD_KEY);
+    await h.api.load();
+    await h.api.syncPendingItems();
+    assert.equal(h.writes.length, 0);
+    assert.equal(h.api.visible().length, 0);
+    assert.equal(h.api.getQuarantinedItems().length, 1);
+    assert.equal(h.storage.get(OLD_KEY), old);
+  }
+});
+
+test('legacy cache exactly acknowledged by cloud reconciles with no write', async () => {
+  const h = harness({ legacy: [perception({ _sync_status: 'synced' })], rows: [perception({ updated_at: '2026-09-19T10:00:00Z' })] });
+  await h.api.refreshDeviceCache();
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'synced');
+  assert.equal(h.api.visible().length, 1);
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('ambiguous v4 pending queue is retained in recovery instead of assuming new provenance', async () => {
+  const h = harness();
+  h.api.saveLocalItem(perception({ _sync_status: 'pending', _pending_versions: [{ revision: 'old-local-revision', payload: perception() }] }));
+  await h.api.syncPendingItems();
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'quarantined');
+  assert.equal(h.api.getLocalItems()[0]._pending_versions.length, 1);
+  assert.equal(h.writes.length, 0);
+});
+
+test('new local provenance retains automatic retry after transient insert failure', async () => {
+  const h = harness(), created = h.api.queue(perception());
+  h.intercept(q => ({ data: q.operation === 'select' ? null : null, error: q.operation === 'select' ? null : { code: 'NETWORK' } }));
+  assert.equal(await h.api.syncSingleItemToSupabase(created), false);
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'pending');
+  h.intercept(null);
+  assert.equal(await h.api.syncSingleItemToSupabase(h.api.getLocalItems()[0]), true);
+  assert.equal(h.writes.length, 1);
+});
+
+test('only explicit tombstone rejection quarantines an otherwise new draft', async () => {
+  const h = harness(), row = h.api.queue(perception());
+  h.intercept((q, execute) => q.operation === 'insert' ? { data: null, error: { code: 'P0001', message: 'Esta área foi removida. Atualize os dados deste aparelho.' } } : execute());
+  assert.equal(await h.api.syncSingleItemToSupabase(row), false);
+  assert.equal(h.api.getLocalItems()[0]._quarantine_reason, 'remote-removed');
+  assert.equal(h.api.getLocalItems()[0]._pending_versions.length, 1);
+  assert.equal(h.writes.length, 0);
+  const other = harness(), otherRow = other.api.queue(perception());
+  other.intercept((q, execute) => q.operation === 'insert' ? { data: null, error: { code: 'P0001', message: 'Temporary unrelated validation failure' } } : execute());
+  await other.api.syncSingleItemToSupabase(otherRow);
+  assert.equal(other.api.getLocalItems()[0]._sync_status, 'pending');
+});
+
+test('explicit recovery creates one new pending UUID, retains original and is idempotent', async () => {
+  const h = harness({ legacy: [perception({ _sync_status: 'synced' })] });
+  const entry = h.api.getQuarantinedItems()[0];
+  const result = await h.api.recoverQuarantinedCopy(entry.id);
+  assert.equal(result.ok, true);
+  assert.notEqual(result.id, ID);
+  assert.equal(h.writes.length, 0, 'Recovery itself must not send data.');
+  assert.equal(h.api.getLocalItems().length, 2);
+  const again = await h.api.recoverQuarantinedCopy(entry.id);
+  assert.equal(again.alreadyRecovered, true);
+  assert.equal(again.id, result.id);
+  assert.equal(h.api.getQuarantinedItems()[0].recoveredId, result.id);
+  assert.equal(h.api.getSyncStatus().quarantined, 0);
+  await h.api.syncPendingItems();
+  assert.equal(h.server.size, 1);
+  assert.equal(h.server.has(ID), false);
+  assert.equal(h.server.has(result.id), true);
+});
+
+test('remote archive is authoritative while offline revisions remain recoverable separately', async () => {
+  const server = perception({ status: 'archived', updated_at: '2026-09-19T11:00:00Z' });
+  const h = harness({ rows: [server] });
+  const first = h.api.queue(perception({ title: 'Offline revision 1' }), baselineRow());
+  h.api.queue(perception({ title: 'Offline revision 2' }), first);
+  await h.api.refreshDeviceCache();
+  const stored = h.api.getLocalItems()[0];
+  assert.equal(stored.status, 'archived');
+  assert.equal(stored._sync_status, 'synced');
+  assert.equal(stored._quarantined_copies[0].snapshot._pending_versions.length, 2);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+  assert.equal(h.api.visible().filter(x => x.status !== 'archived').length, 0);
+  assert.equal(h.writes.length, 0);
+  const restored = await h.api.recoverQuarantinedCopy(h.api.getQuarantinedItems()[0].id);
+  const copy = h.api.getLocalItems().find(row => row.id === restored.id);
+  assert.equal(copy._pending_versions.length, 2);
+  await h.api.syncPendingItems();
+  assert.deepEqual(h.writes.map(row => row.title), ['Offline revision 1 (cópia recuperada)', 'Offline revision 2 (cópia recuperada)']);
+  assert.equal(h.server.get(ID).status, 'archived');
+});
+
+test('confirmed history follows successful complete server snapshot, preserving retired backup', async () => {
+  const current = baselineRow({ version_count: 3, _server_version_count: 3 });
+  const old = { version: 1, title: 'Removed server history', _source: 'server', geometry: current.geometry };
+  const h = harness({ rows: [current], versions: [] });
+  h.api.saveLocalItem({ ...current, _history: [old] });
+  await h.api.refreshDeviceCache();
+  assert.equal(h.api.getLocalItems()[0]._history.length, 0);
+  assert.equal(h.api.getLocalItems()[0]._retired_history.length, 1);
+  assert.equal(h.api.getLocalItems()[0].version_count, 1);
+  await h.api.refreshDeviceCache();
+  assert.equal(h.api.getLocalItems()[0]._retired_history.length, 1);
+});
+
+test('history fetch failure preserves confirmed and local snapshots exactly', async () => {
+  const current = baselineRow({ version_count: 2, _server_version_count: 2 });
+  const old = { version: 1, title: 'Keep on error', _source: 'server', geometry: current.geometry };
+  const h = harness({ rows: [current] }); h.api.saveLocalItem({ ...current, _history: [old] });
+  h.intercept((q, execute) => q.table === 'fcu_perception_versions' ? { data: null, error: { code: 'NETWORK' } } : execute());
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'partial-history');
+  assert.equal(h.api.getLocalItems()[0]._history.length, 1);
+  assert.equal(h.api.getLocalItems()[0].version_count, 2);
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+});
+
+test('unrecognized legacy history is recoverable but is not confirmed history or duplicated on reload', async () => {
+  const current = baselineRow();
+  const h = harness({ rows: [current] });
+  h.api.saveLocalItem({ ...current, _history: [{ version: 1, title: 'Unsure offline snapshot', geometry: current.geometry }] });
+  await h.api.refreshDeviceCache(); await h.api.refreshDeviceCache();
+  assert.equal(h.api.getLocalItems()[0]._history.length, 0);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+  const copy = await h.api.recoverQuarantinedCopy(h.api.getQuarantinedItems()[0].id);
+  assert.equal(copy.ok, true);
+  assert.equal(h.writes.length, 0);
+});
+
+test('first online refresh never exposes synced cache while awaiting server verification', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow());
+  let release, started;
+  const reached = new Promise(resolve => { started = resolve; });
+  h.intercept((q, execute) => {
+    if (q.table === 'fcu_perceptions') { started(); return new Promise(resolve => { release = () => resolve(execute()); }); }
+    return execute();
+  });
+  const loading = h.api.refreshDeviceCache(); await reached;
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.api.getSyncStatus().checking, true);
+  release(); await loading;
+  assert.equal(h.api.getSyncStatus().checking, false);
+});
+
+test('safe device refresh performs reads only and preserves new pending revisions and other owner/preferences/auth', async () => {
+  const h = harness(); const row = h.api.queue(perception());
+  h.storage.set('preditor_fcu_local_perceptions_v4:' + USER_B, 'other-owner-backup');
+  h.storage.set('sb-auth-token', 'private-auth-placeholder');
+  h.storage.set('map-preferences', '{"zoom":12}');
+  h.intercept((q, execute) => { h.api.syncPendingItems(); return execute(); });
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, true);
+  assert.equal(h.calls.every(q => q.operation === 'select'), true);
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.api.getLocalItems()[0]._pending_versions[0].revision, row._pending_versions[0].revision);
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_B), 'other-owner-backup');
+  assert.equal(h.storage.get('sb-auth-token'), 'private-auth-placeholder');
+  assert.equal(h.storage.get('map-preferences'), '{"zoom":12}');
+});
+
+test('read failure leaves confirmed cache and pending queue intact without optimistic deletion', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow());
+  const before = h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A);
+  h.intercept(() => ({ data: null, error: { code: 'NETWORK' } }));
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, false);
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A), before);
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.api.visible().length, 1, 'Known offline cache remains available, explicitly not refreshed.');
+});
+
+test('storage quota prevents recovery atomically without losing original or recording false recovery', async () => {
+  const h = harness({ legacy: [perception()] }); const entry = h.api.getQuarantinedItems()[0];
+  const before = h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A);
+  h.state.quota = true;
+  const recovered = await h.api.recoverQuarantinedCopy(entry.id);
+  assert.equal(recovered.ok, false);
+  assert.equal(recovered.reason, 'storage-unavailable');
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A), before);
+  assert.equal(h.api.getQuarantinedItems()[0].recoveredId, null);
+  assert.equal(h.writes.length, 0);
+});
+
+test('quota during refresh never erases old cache or declares cloud reconciliation complete', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow());
+  const before = h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A); h.state.quota = true;
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'storage-unavailable');
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A), before);
+  assert.equal(h.api.getSyncStatus().lastLoadedAt, null);
+  assert.equal(h.writes.length, 0);
+});
+
+test('account switch during refresh never merges or discloses previous owner recovery', async () => {
+  const h = harness({ legacy: [perception()] }); h.api.getLocalItems();
+  const before = h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A);
+  h.intercept((q, execute) => { const result = execute(); h.api.setOwner(USER_B); return result; });
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'account-changed');
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal((await h.api.recoverQuarantinedCopy(ID)).ok, false);
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A), before);
+  assert.equal(h.writes.length, 0);
+});
+
+test('confirmed remote archive replaces unchanged local data without writes', async () => {
+  const h = harness({ rows: [perception({ status: 'archived', updated_at: '2026-09-19T11:00:00Z' })] });
+  h.api.saveLocalItem(baselineRow());
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, true);
+  assert.equal(h.api.visible().filter(row => row.status !== 'archived').length, 0);
+  assert.equal(h.api.getLocalItems()[0].status, 'archived');
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('offline update to now deleted cloud row stays recoverable and never re-inserts old UUID', async () => {
+  const h = harness();
+  const queued = h.api.queue(perception({ title: 'Offline field edit' }), baselineRow());
+  await h.api.syncSingleItemToSupabase(queued);
+  const stored = h.api.getLocalItems()[0];
+  assert.equal(stored._sync_status, 'quarantined');
+  assert.equal(stored._pending_versions.length, 1);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('refresh while a write is running returns busy instead of racing the in-flight mutation', async () => {
+  const h = harness(), draft = h.api.queue(perception());
+  let release, started;
+  const reached = new Promise(resolve => { started = resolve; });
+  h.intercept((q, execute) => {
+    if (q.operation === 'insert') { started(); return new Promise(resolve => { release = () => resolve(execute()); }); }
+    return execute();
+  });
+  const saving = h.api.syncSingleItemToSupabase(draft); await reached;
+  const result = await h.api.refreshDeviceCache();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'busy');
+  release(); await saving;
+  assert.equal(h.writes.length, 1);
+});
+
+test('editor opened before remote cleanup fails gracefully without overwriting the recovery snapshot', async () => {
+  const h = harness(); const editor = baselineRow(); h.api.saveLocalItem(editor);
+  await h.api.refreshDeviceCache();
+  const before = h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A);
+  assert.equal(h.api.stageDraft(perception({ title: 'Still open unsaved form' }), editor), false);
+  assert.equal(h.storage.get('preditor_fcu_local_perceptions_v4:' + USER_A), before);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+});
+
+test('stale acknowledgement cannot turn a concurrently archived snapshot into pending data', async () => {
+  const online = perception({ title: 'Already committed local revision', updated_at: '2026-09-19T11:00:00Z' });
+  const h = harness({ rows: [online] });
+  const row = h.api.queue(perception({ title: online.title }), baselineRow());
+  let once = false;
+  h.intercept(async (q, execute) => {
+    const response = execute();
+    if (q.table === 'fcu_perceptions' && q.single && !once) {
+      once = true;
+      h.server.set(ID, { ...online, status: 'archived', updated_at: '2026-09-19T12:00:00Z' });
+      await h.api.load({ sync: false });
+    }
+    return response;
+  });
+  assert.equal(await h.api.syncSingleItemToSupabase(row), false);
+  const current = h.api.getLocalItems()[0];
+  assert.equal(current.status, 'archived');
+  assert.equal(current._sync_status, 'synced');
+  assert.equal(current._pending_versions.length, 0);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+  assert.equal(h.writes.length, 0);
 });

@@ -128,6 +128,10 @@ test('status mobile não confunde cópia local com confirmação online', async 
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Enviando…');
   await emit({ ownerId: 'qa', synced: 1, lastLoadedAt: Date.now(), online: true });
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Salvo online');
+  await emit({ ownerId: 'qa', quarantined: 2, lastLoadedAt: Date.now(), online: true });
+  await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Registros antigos');
+  await emit({ ownerId: 'qa', synced: 1, checking: true, lastLoadedAt: Date.now(), online: true });
+  await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Verificando…');
   await emit({ ownerId: 'qa', conflicts: 1, online: true });
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Revisar versões');
   await emit({ ownerId: 'qa', synced: 1, lastLoadedAt: Date.now(), online: true, cloudAvailable: false });

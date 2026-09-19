@@ -153,7 +153,8 @@
       else if (state.pending || state.localOnly) { message = 'Neste aparelho'; tone = 'pending'; detail = 'Há alterações ainda não confirmadas online. Não limpe os dados do navegador nem saia da conta antes de sincronizar.'; }
       else if (state.online === false) { message = 'Sem conexão'; tone = 'pending'; detail = 'Os mapas podem precisar de internet. Alterações locais serão enviadas quando a conexão voltar.'; }
       else if (state.cloudAvailable === false) { message = 'Conexão não confirmada'; tone = 'pending'; detail = 'Não foi possível confirmar a conexão com sua conta. As cópias locais continuam disponíveis; tente sincronizar novamente.'; }
-      else if (!state.lastLoadedAt) { message = 'Verificando…'; detail = 'Consultando suas percepções online.'; }
+        else if (state.checking || !state.lastLoadedAt) { message = 'Verificando…'; detail = 'Consultando suas percepções online.'; }
+        else if (state.quarantined) { message = 'Registros antigos'; tone = 'pending'; detail = 'Há cópias antigas separadas das percepções atuais. Consulte Minha conta → Dados deste aparelho.'; }
       else if (state.synced) { message = 'Salvo online'; tone = 'success'; detail = 'Gravações confirmadas no servidor; podem ser consultadas com a mesma conta em outro aparelho.'; }
       else { message = 'Online'; tone = 'success'; detail = 'Conectado. Você ainda não tem percepções neste aparelho.'; }
     }

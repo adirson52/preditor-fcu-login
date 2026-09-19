@@ -16,6 +16,7 @@ after_*.png
 node_modules/
 test-results/
 playwright-report/
+tests/artifacts/
 auth-home.png
 auth-register.png
 

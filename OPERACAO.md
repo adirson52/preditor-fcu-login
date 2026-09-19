@@ -54,3 +54,17 @@ Cadastro automático pelo servidor da Master, senha mínima de seis caracteres, 
 A bateria autorizada usa contas sintéticas identificadas como QA técnico e sessões de navegador independentes contra o banco real. Foram exercitados criação, geometria idêntica em outra sessão, edição offline, reconexão, conflitos, lixeira de percepções, histórico e exportação. Testes móveis usam emulação de viewport/toque; não substituem o teste final em aparelhos físicos Android/iOS e no navegador interno do WhatsApp. Os relatórios detalhados ficam fora do Git em `D:\preditor-maintenance-backups\2026-09-19-mobile-qa`.
 
 A interface e sincronização desta etapa pertencem somente ao LoginPercp; o Preditor original não recebe esses arquivos. A rotação de chaves anteriormente expostas permanece fora desta etapa, por decisão do responsável. Não publicar backups, credenciais de QA, tokens ou arquivos de ambiente.
+
+## Limpeza no servidor e dados antigos de aparelhos — 19/09/2026
+
+Uma cópia antiga não comprova que uma percepção ainda existe online. Migrações de cache não devem converter registros antigos em novas gravações automáticas. Registros removidos online e pendências de origem incerta ficam separados da camada/lista atual, preservados neste navegador para recuperação explícita como nova cópia.
+
+**Minha conta → Dados deste aparelho → Atualizar dados deste aparelho** consulta novamente a conta, sem sair do login ou limpar preferências, dados de outras contas e trabalho não enviado. Falta de conexão não autoriza limpar os dados locais. A recuperação explícita cria outro identificador e mantém o original local; não restaura silenciosamente uma remoção administrativa.
+
+Histórico confirmado reflete a leitura completa do servidor. Uma falha ao consultar revisões não deve ser interpretada como histórico vazio. Cópias e revisões locais ainda não confirmadas são preservadas separadamente.
+
+A migração `20260919150543_perception_deletion_markers.sql` na Master registra identificadores de futuras exclusões físicas (DELETE/TRUNCATE) e impede que clientes antigos reinsiram o mesmo desenho. É aditiva, não remove registros atuais e não reconstrói marcadores de exclusões anteriores à migração. Lixeira/restauração continuam sendo atualizações reversíveis. Nunca limpar a tabela de marcadores junto com as percepções.
+
+A migração complementar `20260919151716_perception_identity_guard.sql` mantém imutáveis o identificador e o proprietário, mesmo quando o histórico passa por manutenção. Testes transacionais reais verificaram exclusão/reinserção, identidade e arquivamento/restauração, com rollback ao final. Os testes locais desta correção incluem 59 contratos de autenticação/sincronização, 52 da Master e 17 testes de navegador; um ensaio opcional de conta QA foi omitido porque essas contas estão na lixeira. A falha de cache foi reproduzida com o motor e mapa reais no navegador, usando banco simulado para não criar dados de pesquisa.
+
+Limpar o cache HTTP do Chrome/Safari não limpa necessariamente os desenhos guardados no armazenamento local. Limpar **todos os dados do site** pode encerrar a sessão e perder alterações ainda não enviadas; preferir o botão acima. Registros já reenviados ao banco não desaparecem limpando apenas o aparelho: qualquer arquivamento desses registros exige seleção e confirmação administrativa.

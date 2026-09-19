@@ -29,6 +29,8 @@
   let accountEpoch = 0, loadedOwner = null, loadSequence = 0, authOwner, lastLoadedAt = null, cloudAvailable = null;
   const syncingItems = new Map();
   const syncingOwners = new Set();
+  const refreshingOwners = new Set();
+  let checkingCloud = false;
 
   let map = null, db = null, drawing = false, dragging = false, geometryEditing = false, gridMode = false;
   let points = [], originalPoints = [], selectedVertex = -1, draft = null, editingId = null, editingRecord = null;
@@ -129,6 +131,46 @@
   function sameAccount(id, epoch) { return ownerId() === id && accountEpoch === epoch; }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function cacheKey(id) { return LOCAL_STORAGE_KEY + id; }
+  function quarantined(record) { return record && record._sync_status === 'quarantined'; }
+  function provenDraft(record) {
+    return !!record && record._local_origin === 'draft-v1' && record._local_origin_id === record.id && !record._legacy_import && !record._legacy_id;
+  }
+  function quarantineRecord(record, reason, server = null) {
+    // Never discard offline content. A remote row can be authoritative while
+    // a conflicting local revision remains recoverable in a separate slot.
+    const archived = { ...clone(record), _sync_status: 'quarantined',
+      _quarantine_reason: reason, _quarantined_at: record._quarantined_at || new Date().toISOString() };
+    if (!server) return archived;
+    const retained = record._quarantined_copies || [];
+    delete archived._quarantined_copies;
+    const recovery = { id: generateUUID(), snapshot: archived };
+    return { ...server, _sync_status: 'synced', _server_updated_at: server.updated_at,
+      _pending_versions: [], _quarantined_copies: [...retained, recovery],
+      _history: [], _retired_history: record._retired_history || [] };
+  }
+  function visibleCache(records) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    return records.filter(record => !quarantined(record) &&
+      (lastLoadedAt || cloudAvailable === false || offline || (provenDraft(record) && !record._server_updated_at)));
+  }
+  function recoveryEntries(records) {
+    return records.flatMap(record => [
+      ...(quarantined(record) ? [{ id: record.id, container: record, snapshot: record }] : []),
+      ...(record._quarantined_copies || []).map(entry => ({ ...entry, container: record }))
+    ]);
+  }
+  function getQuarantinedItems() {
+    const id = ownerId();
+    if (!id) return [];
+    try {
+      return recoveryEntries(getLocalItems(id)).filter(entry => owns(entry.snapshot, id)).map(entry => ({
+        id: entry.id, title: entry.snapshot.title || 'Percepção preservada',
+        reason: entry.snapshot._quarantine_reason || 'unverified-cache', createdAt: entry.snapshot.created_at || null,
+        revisionCount: Math.max(entry.snapshot.version_count || 1, (entry.snapshot._pending_versions || []).length),
+        recoveredId: entry.snapshot._recovered_copy_id || null
+      }));
+    } catch (_) { return []; }
+  }
   function getSyncStatus() {
     const id = ownerId();
     let records = [], storageAvailable = true;
@@ -138,11 +180,13 @@
     } catch (_) { storageAvailable = false; }
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
     return {
-      ownerId: id, total: records.length,
+      ownerId: id, total: records.filter(record => !quarantined(record)).length,
       pending: records.filter(record => record._sync_status === 'pending').length,
       synced: records.filter(record => record._sync_status === 'synced').length,
       conflicts: records.filter(record => record._sync_status === 'conflict').length,
-      localOnly: records.filter(record => !['pending', 'synced', 'conflict'].includes(record._sync_status)).length,
+      localOnly: records.filter(record => !['pending', 'synced', 'conflict', 'quarantined'].includes(record._sync_status)).length,
+      quarantined: recoveryEntries(records).filter(entry => !entry.snapshot._recovered_copy_id).length,
+      checking: checkingCloud,
       syncing: !!id && (syncingOwners.has(id) || Array.from(syncingItems.keys()).some(key => key.startsWith(id + ':'))),
       offline, online: !offline, storageAvailable, lastLoadedAt, cloudAvailable
     };
@@ -171,7 +215,17 @@
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.items)) throw new Error('Invalid perception cache');
-      return parsed.items.filter(x => owns(x, id));
+      const owned = parsed.items.filter(x => owns(x, id));
+      const normalized = owned.map(record => {
+        if (record._sync_status === 'pending' && !record._server_updated_at && !provenDraft(record)) {
+          return quarantineRecord(record, 'unverified-cache');
+        }
+        if (record._sync_status === 'conflict' && !record._conflict) return quarantineRecord(record, 'remote-removed');
+        if (record._sync_status === 'conflict' && record._conflict?.status === 'archived') return quarantineRecord(record, 'remote-archived', record._conflict);
+        return record;
+      });
+      if (normalized.some((record, i) => record !== owned[i])) setLocalItems(normalized, id);
+      return normalized;
     }
     const migrated = new Map();
     for (const key of LEGACY_STORAGE_KEYS) {
@@ -182,9 +236,10 @@
       if (!Array.isArray(list)) continue;
       list.filter(x => owns(x, id) && x.id).forEach(x => {
         if (migrated.has(x.id)) return;
-        // Earlier versions could label a zero-row update as synced. Verify it.
+        // Legacy acknowledgement was unreliable. Keep every snapshot, but do
+        // not turn old caches into new online submissions after a Master reset.
         const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.id);
-        migrated.set(x.id, { ...x, id: validId ? x.id : generateUUID(), ...(validId ? {} : { _legacy_id: x.id }), _sync_status: 'pending', _legacy_import: true });
+        migrated.set(x.id, quarantineRecord({ ...x, id: validId ? x.id : generateUUID(), ...(validId ? {} : { _legacy_id: x.id }), _legacy_import: true }, 'legacy-unverified'));
       });
     }
     const list = Array.from(migrated.values());
@@ -212,6 +267,15 @@
       status('Armazenamento indisponível. O desenho ainda não foi salvo; não feche a página.', true);
       return false;
     }
+  }
+  function stageDraft(item, previous) {
+    try { markPending(item, previous); }
+    catch (_) {
+      status('Não foi possível preparar a gravação: confira os dados deste aparelho. O rascunho continua aberto; não feche a página.', true, '#fcu-form-status');
+      status('O desenho pode ter mudado em outro acesso. Seu rascunho continua aberto.', true);
+      return false;
+    }
+    return persistDraft(item);
   }
   function perceptionPayload(item) {
     return {
@@ -250,6 +314,12 @@
     // the current persistent cache owns the queue (another tab may have saved).
     const cached = getLocalItems(item.user_id).find(x => x.id === item.id);
     const latest = cached || previous;
+    if (quarantined(latest) || quarantined(previous)) throw new Error('Recover quarantined drawing as a new copy first');
+    if (!latest && !previous) {
+      item._local_origin = 'draft-v1'; item._local_origin_id = item.id;
+    } else if (latest) {
+      item._local_origin = latest._local_origin; item._local_origin_id = latest._local_origin_id;
+    }
     const queued = latest && latest._sync_status !== 'synced' ? pendingOperations(latest) : [];
     const editorRevisionIsCurrent = latest && previous && latest._local_revision === previous._local_revision && samePayload(latest, previous);
     const editorRevisionStillQueued = previous && previous._local_revision && queued.some(op => op.revision === previous._local_revision);
@@ -287,21 +357,75 @@
     });
     return Array.from(history.values()).sort((a, b) => new Date(a.updated_at || a.recorded_at || 0) - new Date(b.updated_at || b.recorded_at || 0));
   }
+  function reconcileHistory(existing, remote, complete) {
+    if (!complete) return { _history: existing?._history || [], _retired_history: existing?._retired_history || [],
+      _quarantined_copies: existing?._quarantined_copies || [] };
+    const prior = existing?._history || [];
+    const localPending = existing && ['pending', 'conflict', 'quarantined'].includes(existing._sync_status);
+    const retained = localPending ? prior.filter(snapshot => snapshot._source !== 'server') : [];
+    const representedOnline = snapshot => remote.some(row => mergeHistory([snapshot], [row]).length === 1);
+    const retired = prior.filter(snapshot => !retained.includes(snapshot) && !representedOnline(snapshot));
+    const copies = [...(existing?._quarantined_copies || [])];
+    // Pre-v4 histories did not identify whether a snapshot was ever committed.
+    // Keep unmatched local revisions recoverable, not in confirmed history.
+    if (!localPending && existing) retired.filter(snapshot => snapshot._source !== 'server').forEach(snapshot => {
+      const represented = representedOnline(snapshot);
+      if (!represented && snapshot.geometry) {
+        const preserved = { ...perceptionPayload(existing), ...snapshot, id: existing.id, user_id: existing.user_id,
+          _history: [], _pending_versions: [], _sync_status: 'quarantined', _quarantine_reason: 'history-unverified' };
+        copies.push({ id: generateUUID(), snapshot: preserved });
+      }
+    });
+    return { _history: mergeHistory(retained, remote), _retired_history: mergeHistory(existing?._retired_history || [], retired),
+      _quarantined_copies: copies };
+  }
+  async function recoverQuarantinedCopy(recoveryId) {
+    const id = ownerId(), epoch = accountEpoch;
+    if (!id) return { ok: false, reason: 'unauthenticated' };
+    try {
+      const list = getLocalItems(id);
+      const entry = recoveryEntries(list).find(candidate => candidate.id === recoveryId && owns(candidate.snapshot, id));
+      if (!entry) return { ok: false, reason: 'not-found' };
+      if (entry.snapshot._recovered_copy_id) return { ok: true, reason: 'already-recovered', alreadyRecovered: true, id: entry.snapshot._recovered_copy_id };
+      const original = entry.snapshot;
+      const ring = original.geometry?.type === 'Polygon' && original.geometry.coordinates?.[0];
+      if (!Array.isArray(ring) || ring.length < 4 || !ring.every(point => Array.isArray(point) && point.length >= 2 && point.every(Number.isFinite))) {
+        return { ok: false, reason: 'invalid-geometry' };
+      }
+      const newId = generateUUID(), createdAt = new Date().toISOString();
+      const title = value => String(value || 'Percepção').slice(0, 100) + ' (cópia recuperada)';
+      const copy = { ...perceptionPayload(original), id: newId, title: title(original.title), status: 'submitted',
+        created_at: createdAt, _history: [], _recovered_from_id: original.id, _sync_status: 'pending' };
+      markPending(copy);
+      const originalOperations = original._pending_versions || [];
+      if (originalOperations.length) copy._pending_versions = originalOperations.map(op => ({ revision: generateUUID(), payload: {
+        ...perceptionPayload(op.payload), id: newId, user_id: id, title: title(op.payload.title), status: 'submitted', created_at: createdAt
+      } }));
+      copy.version_count = copy._pending_versions.length;
+      entry.snapshot._recovered_copy_id = newId;
+      if (!sameAccount(id, epoch)) return { ok: false, reason: 'account-changed' };
+      setLocalItems([copy, ...list], id);
+      refreshCachedUI(id);
+      return { ok: true, reason: 'recovered', id: newId, alreadyRecovered: false };
+    } catch (_) { return { ok: false, reason: 'storage-unavailable' }; }
+  }
   function refreshCachedUI(id) {
     if (ownerId() !== id) return;
-    items = getLocalItems(id);
+    items = visibleCache(getLocalItems(id));
     renderLayers();
     renderItemsUI();
   }
   function markConflict(item, server, id) {
     const current = getLocalItems(id).find(x => x.id === item.id);
     if (!current) return;
-    saveLocalItem({ ...current, _sync_status: 'conflict', _conflict: server || null }, id);
+    saveLocalItem(!server ? quarantineRecord(current, 'remote-removed') : server.status === 'archived'
+      ? quarantineRecord(current, 'remote-archived', server)
+      : { ...current, _sync_status: 'conflict', _conflict: server }, id);
     refreshCachedUI(id);
   }
   async function syncPendingItems() {
     const id = ownerId(), epoch = accountEpoch;
-    if (!client() || !id || syncingOwners.has(id)) return;
+    if (!client() || !id || syncingOwners.has(id) || refreshingOwners.has(id)) return;
     syncingOwners.add(id);
     emitSyncStatus();
     try {
@@ -314,20 +438,20 @@
   }
   async function syncSingleItemToSupabase(item) {
     const id = ownerId(), epoch = accountEpoch, c = client();
-    if (!c || !owns(item, id) || item._sync_status === 'conflict') return false;
+    if (!c || !owns(item, id) || item._sync_status === 'conflict' || quarantined(item) || refreshingOwners.has(id)) return false;
     const lock = id + ':' + item.id;
     if (syncingItems.has(lock)) return syncingItems.get(lock);
     const work = (async () => {
       try {
         if (!(await mayAccessCloud(id, epoch))) return false;
         let current = getLocalItems(id).find(x => x.id === item.id);
-        if (!current) return false;
+        if (!current || quarantined(current)) return false;
         // A fixed batch permits new local edits during an in-flight request.
         const operations = clone(pendingOperations(current));
         for (const op of operations) {
           if (!sameAccount(id, epoch)) return false;
           current = getLocalItems(id).find(x => x.id === item.id);
-          if (!current || current._sync_status === 'conflict') return false;
+          if (!current || current._sync_status === 'conflict' || quarantined(current) || refreshingOwners.has(id)) return false;
           if (!pendingOperations(current).some(x => x.revision === op.revision)) continue;
           const read = await c.from('fcu_perceptions').select('*').eq('id', item.id).eq('user_id', id).maybeSingle();
           if (!sameAccount(id, epoch) || read.error) return false;
@@ -336,16 +460,25 @@
           if (server && samePayload(server, op.payload)) {
             // Handles a response lost after a successful commit, without duplicates.
           } else {
+            if (!server && !provenDraft(current) && !current._server_updated_at) {
+              saveLocalItem(quarantineRecord(current, 'unconfirmed-write'), id);
+              refreshCachedUI(id); return false;
+            }
             if ((server && (!current._server_updated_at || server.updated_at !== current._server_updated_at)) ||
                 (!server && current._server_updated_at)) {
               markConflict(current, server, id);
               return false;
             }
+            if (refreshingOwners.has(id)) return false;
             let write = server ? c.from('fcu_perceptions').update(op.payload).eq('id', item.id).eq('user_id', id).eq('updated_at', current._server_updated_at) :
               c.from('fcu_perceptions').insert(op.payload);
             const result = await write.select('*');
             if (!sameAccount(id, epoch)) return false;
             if (result.error || !Array.isArray(result.data) || result.data.length !== 1) {
+              if (result.error?.code === 'P0001' && result.error.message === 'Esta área foi removida. Atualize os dados deste aparelho.') {
+                saveLocalItem(quarantineRecord(current, 'remote-removed'), id);
+                refreshCachedUI(id); return false;
+              }
               if (!result.error || result.error.code === '23505') {
                 const latest = await c.from('fcu_perceptions').select('*').eq('id', item.id).eq('user_id', id).maybeSingle();
                 if (!sameAccount(id, epoch) || latest.error) return false;
@@ -357,6 +490,13 @@
           if (!server || server.id !== item.id || !owns(server, id) || !server.updated_at || !samePayload(server, op.payload)) return false;
           current = getLocalItems(id).find(x => x.id === item.id);
           if (!current) return false;
+          // A concurrent refresh may have moved this exact operation into
+          // recovery after an archive/delete. Never turn its remote snapshot
+          // back into a pending write using this stale acknowledgement.
+          if (!pendingOperations(current).some(opNow => opNow.revision === op.revision)) {
+            if (current._sync_status === 'synced' && samePayload(current, op.payload)) continue;
+            return false;
+          }
           const remaining = pendingOperations(current).filter(x => x.revision !== op.revision);
           const knownCount = current._server_version_count || (current._server_updated_at ? Math.max(0, (current.version_count || 1) - pendingOperations(current).length) : 0);
           const serverVersionCount = knownCount + (current._server_count_updated_at === server.updated_at ? 0 : 1);
@@ -371,7 +511,8 @@
         }
         if (!sameAccount(id, epoch)) return false;
         refreshCachedUI(id);
-        return getLocalItems(id).find(x => x.id === item.id)?._sync_status === 'synced';
+        const final = getLocalItems(id).find(x => x.id === item.id);
+        return final?._sync_status === 'synced' && samePayload(final, operations[operations.length - 1].payload);
       } catch (_) {
         // Never downgrade payloads or acknowledge failed / zero-row writes.
         return false;
@@ -895,16 +1036,17 @@
     let localList;
     try { localList = getLocalItems(); }
     catch (_) { return status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true); }
-    let activeData = (items.length ? items : localList).filter(x => owns(x, u.id));
+    let activeData = visibleCache(items.length ? items : localList).filter(x => owns(x, u.id));
     if (!activeData.length) {
       const c = client();
       if (c) {
+        if (!(await mayAccessCloud(u.id, epoch))) return status('Não foi possível confirmar os dados online para exportar.', true);
         try { activeData = await readAllOwned(c, 'fcu_perceptions', '*', u.id, epoch, 'created_at'); }
         catch (_) { return status('Não foi possível consultar as percepções para exportar. Tente novamente.', true); }
       }
     }
     if (!sameAccount(u.id, epoch)) return;
-    activeData = activeData.filter(x => owns(x, u.id));
+    activeData = activeData.filter(x => owns(x, u.id) && !quarantined(x));
     if (!activeData.length) return status('Nenhuma percepção encontrada.', true);
 
     const format = customFilters.format || $('#fcu-exp-format')?.value || 'geojson';
@@ -1241,12 +1383,13 @@
     const nowStr=new Date().toISOString();
 
     const existingItem = editingId ? items.find(x => x.id === editingId) : null;
-    if (editingId && !owns(existingItem)) return status('Entre novamente na conta que criou este desenho.', true, '#fcu-form-status');
+    if (editingId && (!owns(existingItem) || quarantined(existingItem))) return status('Este desenho não está disponível para edição. Confira os dados do aparelho.', true, '#fcu-form-status');
     const historyList = (existingItem && Array.isArray(existingItem._history)) ? [...existingItem._history] : [];
     if (existingItem) {
       const prevVer = existingItem.version_count || (historyList.length + 1);
       historyList.push({
         ...perceptionPayload(existingItem),
+        _source: existingItem._sync_status === 'synced' ? 'server' : 'local',
         version: prevVer,
         updated_at: existingItem.updated_at || existingItem.created_at || nowStr,
         title: existingItem.title,
@@ -1288,8 +1431,7 @@
       _sync_status:'pending'
     };
 
-    markPending(payload, editingRecord || existingItem);
-    if (!persistDraft(payload)) return;
+    if (!stageDraft(payload, editingRecord || existingItem)) return;
 
     if(editingId){const i=items.findIndex(x=>x.id===editingId);if(i>=0)items[i]=payload;else items.unshift(payload);}
     else items.unshift(payload);
@@ -1317,12 +1459,11 @@
     if (!requireLogin()) return;
     if(!confirm('Remover esta percepção do mapa e enviá-la para a Lixeira?'))return;
     const targetItem = items.find(x => x.id === id);
-    if (owns(targetItem)) {
+    if (owns(targetItem) && !quarantined(targetItem)) {
       const previous = clone(targetItem);
       targetItem.status = 'archived';
       targetItem.updated_at = new Date().toISOString();
-      markPending(targetItem, previous);
-      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
+      if (!stageDraft(targetItem, previous)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       renderItemsUI();
       status('⚡ Percepção movida para a Lixeira no dispositivo. Sincronizando...');
@@ -1334,12 +1475,11 @@
   async function restore(id){
     if (!requireLogin()) return;
     const targetItem = items.find(x => x.id === id);
-    if (owns(targetItem)) {
+    if (owns(targetItem) && !quarantined(targetItem)) {
       const previous = clone(targetItem);
       targetItem.status = 'submitted';
       targetItem.updated_at = new Date().toISOString();
-      markPending(targetItem, previous);
-      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
+      if (!stageDraft(targetItem, previous)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       showTab('active');
       renderItemsUI();
@@ -1427,7 +1567,7 @@
 
   function beginGeometryEdit(record,isNew=false){
     if(!requireLogin())return;
-    if(record && !owns(record))return;
+    if(record && (!owns(record) || quarantined(record)))return;
     close();
     closeProfilePanel();
     geometryEditing=true;
@@ -1499,12 +1639,13 @@
       
       const recId = record.id;
       const targetItem = items.find(x => x.id === recId) || record;
-      if (!owns(targetItem)) return;
+      if (!owns(targetItem) || quarantined(targetItem)) return;
       const previous = clone(targetItem);
       const historyList = Array.isArray(targetItem._history) ? [...targetItem._history] : [];
       const prevVer = targetItem.version_count || (historyList.length + 1);
       historyList.push({
         ...perceptionPayload(targetItem),
+        _source: targetItem._sync_status === 'synced' ? 'server' : 'local',
         version: prevVer,
         updated_at: targetItem.updated_at || targetItem.created_at || new Date().toISOString(),
         title: targetItem.title,
@@ -1516,8 +1657,7 @@
       targetItem.version_count = (targetItem.version_count || 1) + 1;
       targetItem.geometry = draft.geometry;
       targetItem.updated_at = new Date().toISOString();
-      markPending(targetItem, editingRecord || previous);
-      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
+      if (!stageDraft(targetItem, editingRecord || previous)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       closeEditor();
       reset();
@@ -1553,6 +1693,7 @@
           requireLogin();
         };
       }
+      window.dispatchEvent(new CustomEvent('preditor:account-rendered'));
       return;
     }
     const meta = u.user_metadata || {};
@@ -1560,7 +1701,7 @@
     const email = u.email || '';
     const institution = meta.institution || 'Não informada';
     const initials = (fullName.split(' ').map(n=>n[0]).slice(0,2).join('') || 'U').toUpperCase();
-    const userActiveCount = items.filter(x => owns(x) && x.status !== 'archived').length;
+    const userActiveCount = items.filter(x => owns(x) && !quarantined(x) && x.status !== 'archived').length;
 
     container.innerHTML = `
       <!-- CARD 1: PERFIL DO PARTICIPANTE -->
@@ -1862,9 +2003,10 @@
       window.PreditorTelemetry?.track('platform_rating_submit', { rating: ratingVal });
       status('✓ Obrigado por avaliar o Preditor FCU!', false, '#fcu-rating-st');
     };
+    window.dispatchEvent(new CustomEvent('preditor:account-rendered'));
   }
 
-  function edit(r){if(!requireLogin()||!owns(r))return;editingId=r.id;editingRecord=clone(r);draft={target_kind:r.target_kind||'polygon',action_type:r.action_type||'free',cell_id:r.cell_id,model_class:r.model_class,model_probability:r.model_probability,model_snapshot:r.model_snapshot||{},geometry_source:r.geometry_source||'user_polygon',geometry:r.geometry};points=toPoints(r.geometry);showForm(r.perceived_class||(r.perception_types||[])[0],r);}
+  function edit(r){if(!requireLogin()||!owns(r)||quarantined(r))return;editingId=r.id;editingRecord=clone(r);draft={target_kind:r.target_kind||'polygon',action_type:r.action_type||'free',cell_id:r.cell_id,model_class:r.model_class,model_probability:r.model_probability,model_snapshot:r.model_snapshot||{},geometry_source:r.geometry_source||'user_polygon',geometry:r.geometry};points=toPoints(r.geometry);showForm(r.perceived_class||(r.perception_types||[])[0],r);}
   function showTab(tab){
     const list = $('#fcu-perception-list');
     const history = $('#fcu-perception-history');
@@ -1915,7 +2057,7 @@
     }
     layers.clearLayers();
     layerById.clear();
-    items.filter(r=>owns(r)&&r.status!=='archived').forEach(r=>{
+    items.filter(r=>owns(r)&&!quarantined(r)&&r.status!=='archived').forEach(r=>{
       const k=r.perceived_class||(r.perception_types||[])[0]||'outro';
       if(!filters.classes.has(k)||!filters.actions.has(r.action_type||'free'))return;
       const pts=toPoints(r.geometry);
@@ -2014,8 +2156,8 @@
     const history = $('#fcu-perception-history');
     if (!list || !history) return;
 
-    const active = items.filter(x => owns(x) && x.status !== 'archived');
-    const trash = items.filter(x => owns(x) && x.status === 'archived');
+    const active = items.filter(x => owns(x) && !quarantined(x) && x.status !== 'archived');
+    const trash = items.filter(x => owns(x) && !quarantined(x) && x.status === 'archived');
 
     list.innerHTML = active.length ? '' : '<p>Nenhuma percepção registrada no momento.</p>';
     history.innerHTML = trash.length ? '' : '<p>A lixeira está vazia.</p>';
@@ -2036,12 +2178,15 @@
       const copy = { ...clone(original), id: generateUUID(), title: copyTitle(original.title),
         _conflict: null, _sync_status: 'pending', _server_updated_at: null, _server_version_count: 0, _server_count_updated_at: null, _local_revision: generateUUID(),
         created_at: new Date().toISOString(), _conflict_origin_id: recordId };
+      delete copy._legacy_import; delete copy._legacy_id;
+      delete copy._quarantined_copies; delete copy._retired_history;
+      markPending(copy);
       copy._pending_versions = pendingOperations(original).map(op => ({ revision: generateUUID(), payload: {
         ...op.payload, id: copy.id, title: copyTitle(op.payload.title), created_at: copy.created_at
       } }));
       copy.version_count = copy._pending_versions.length;
-      const replacement = row.data ? { ...row.data, _server_updated_at: row.data.updated_at, _sync_status: 'synced', _history: original._history || [] } :
-        { ...original, status: 'archived', _sync_status: 'local_only', _conflict: null };
+      const replacement = row.data ? { ...original, ...row.data, _pending_versions: [], _server_updated_at: row.data.updated_at, _sync_status: 'synced', _history: original._history || [] } :
+        { ...quarantineRecord(original, 'remote-removed'), _recovered_copy_id: copy.id };
       setLocalItems([copy, ...list.map(x => x.id === recordId ? replacement : x)], id);
       refreshCachedUI(id);
       status('As versões foram preservadas separadamente. Sincronizando a cópia...');
@@ -2067,6 +2212,7 @@
     accountEpoch++;
     lastLoadedAt = null;
     cloudAvailable = null;
+    checkingCloud = false;
     items = [];
     layers.clearLayers();
     layerById.clear();
@@ -2080,9 +2226,9 @@
     emitSyncStatus();
   }
 
-  async function load(){
+  async function load(options = {}){
     const list=$('#fcu-perception-list'),history=$('#fcu-perception-history');
-    if(!list)return;
+    if(!list)return { ok: false, reason: 'unavailable' };
     const uId = ownerId();
     resetForAccount(uId);
     const epoch = accountEpoch, sequence = ++loadSequence;
@@ -2091,24 +2237,31 @@
       renderLayers();
       list.innerHTML='<p>Entre para consultar as percepções.</p>';
       history.innerHTML='<p>Entre para consultar a Lixeira.</p>';
-      return;
+      return { ok: false, reason: 'unauthenticated' };
     }
-
+    let outcome = { ok: false, reason: 'unavailable' };
+    checkingCloud = true;
+    emitSyncStatus();
     try {
-      items = getLocalItems(uId);
-      const requestedLocal = new Map(items.map(x => [x.id, x]));
+      const local = getLocalItems(uId);
+      items = visibleCache(local);
+      const requestedLocal = new Map(local.map(x => [x.id, x]));
       renderLayers();
       renderItemsUI();
       const c = client();
       if (c) {
-        if (!(await mayAccessCloud(uId, epoch))) return;
+        if (!(await mayAccessCloud(uId, epoch))) {
+          if (sameAccount(uId, epoch)) refreshCachedUI(uId);
+          return { ok: false, reason: sameAccount(uId, epoch) ? 'unavailable' : 'account-changed' };
+        }
         const serverRows = await readAllOwned(c, 'fcu_perceptions', '*', uId, epoch, 'created_at');
         if (sameAccount(uId, epoch) && sequence === loadSequence) {
-          let versions = [];
+          let versions = [], historyComplete = false;
           try {
             versions = await readAllOwned(c, 'fcu_perception_versions', 'id,user_id,perception_id,version,title,perceived_class,perception_types,geometry,description,recorded_at,status,intensity,confidence,time_reference,knowledge_sources,field_validation,field_visit_date,model_snapshot,action_type,cell_id', uId, epoch, 'version');
+            historyComplete = true;
           } catch (_) { /* Existing local history is kept if history fetch fails. */ }
-          if (!sameAccount(uId, epoch) || sequence !== loadSequence) return;
+          if (!sameAccount(uId, epoch) || sequence !== loadSequence) return { ok: false, reason: sameAccount(uId, epoch) ? 'superseded' : 'account-changed' };
           const counts = {};
           versions.forEach(v => counts[v.perception_id] = Math.max(counts[v.perception_id] || 0, v.version));
           const histories = new Map();
@@ -2120,35 +2273,71 @@
           // Re-read after awaits: a local save may have happened during loading.
           const localMap = new Map(getLocalItems(uId).map(x => [x.id, x]));
           serverRows.forEach(serverItem => {
-            const existing = localMap.get(serverItem.id);
-            const serverCount = counts[serverItem.id] || existing?._server_version_count || 1;
-            const queuedCount = existing && existing._sync_status !== 'synced' ? pendingOperations(existing).length : 0;
-            const metadata = { _history: mergeHistory(existing?._history || [], histories.get(serverItem.id) || []),
-              _server_version_count: serverCount, _server_count_updated_at: serverItem.updated_at, version_count: serverCount + queuedCount };
+            let existing = localMap.get(serverItem.id);
             const responseIsOlder = existing && Date.parse(existing._server_updated_at) > Date.parse(serverItem.updated_at);
-            if (existing && (existing._sync_status !== 'synced' || responseIsOlder)) {
-              localMap.set(serverItem.id, { ...existing, ...metadata });
-            } else localMap.set(serverItem.id, { ...existing, ...serverItem, ...metadata, _server_updated_at: serverItem.updated_at, _sync_status: 'synced' });
+            if (responseIsOlder) return;
+            if (existing && quarantined(existing)) {
+              if (['legacy-unverified', 'unverified-cache'].includes(existing._quarantine_reason) && samePayload(existing, serverItem)) {
+                existing = { ...existing, _sync_status: 'synced', _pending_versions: [] };
+              } else existing = quarantineRecord(existing, existing._quarantine_reason, serverItem);
+            } else if (existing && existing._sync_status !== 'synced' && serverItem.status === 'archived' && !samePayload(existing, serverItem)) {
+              existing = quarantineRecord(existing, 'remote-archived', serverItem);
+            }
+            const serverCount = historyComplete ? counts[serverItem.id] || 1 : existing?._server_version_count || 1;
+            const queuedCount = existing && ['pending', 'conflict'].includes(existing._sync_status) ? pendingOperations(existing).length : 0;
+            const metadata = { ...reconcileHistory(existing, histories.get(serverItem.id) || [], historyComplete),
+              _server_version_count: serverCount, _server_count_updated_at: serverItem.updated_at, version_count: serverCount + queuedCount };
+            if (existing && ['pending', 'conflict'].includes(existing._sync_status)) localMap.set(serverItem.id, { ...existing, ...metadata });
+            else localMap.set(serverItem.id, { ...existing, ...serverItem, ...metadata, _pending_versions: [], _server_updated_at: serverItem.updated_at, _sync_status: 'synced' });
           });
           const serverIds = new Set(serverRows.map(x => x.id));
           localMap.forEach((x, id) => {
             const beforeRead = requestedLocal.get(id);
-            if (!serverIds.has(id) && x._sync_status === 'synced' && beforeRead?._sync_status === 'synced' && x._server_updated_at === beforeRead._server_updated_at) {
-              localMap.set(id, { ...x, _sync_status: 'conflict', _conflict: null });
+            if (serverIds.has(id) || quarantined(x)) return;
+            // A row acknowledged while this read was in flight must not be
+            // mistaken for a deletion by an older empty response.
+            const acknowledgedDuringRead = x._sync_status === 'synced' &&
+              (!beforeRead || beforeRead._sync_status !== 'synced' || x._server_updated_at !== beforeRead._server_updated_at);
+            if (acknowledgedDuringRead) return;
+            if (x._server_updated_at || !provenDraft(x)) {
+              localMap.set(id, quarantineRecord(x, x._server_updated_at ? 'remote-removed' : 'unverified-cache'));
             }
           });
           const mergedList = Array.from(localMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
           setLocalItems(mergedList, uId);
-          items = mergedList;
           lastLoadedAt = new Date().toISOString();
+          items = visibleCache(mergedList);
           renderLayers();
           renderItemsUI(counts);
           emitSyncStatus();
+          outcome = { ok: historyComplete, reason: historyComplete ? 'refreshed' : 'partial-history', pending: getSyncStatus().pending,
+            quarantined: getSyncStatus().quarantined, refreshedAt: lastLoadedAt, historyComplete };
         }
+      } else { cloudAvailable = false; refreshCachedUI(uId); }
+    } catch (error) {
+      if (error instanceof SyntaxError || /quota|storage|cache/i.test(String(error?.message || ''))) outcome.reason = 'storage-unavailable';
+      if (sameAccount(uId, epoch)) {
+        cloudAvailable = false;
+        try { refreshCachedUI(uId); } catch (_) { outcome.reason = 'storage-unavailable'; }
+        status('Não foi possível atualizar a nuvem agora. Os desenhos locais foram preservados.', true);
       }
-    } catch (_) { if (sameAccount(uId, epoch)) status('Não foi possível atualizar a nuvem agora. Os desenhos locais foram preservados.', true); }
-    
-    syncPendingItems();
+    } finally {
+      if (sameAccount(uId, epoch) && sequence === loadSequence) { checkingCloud = false; emitSyncStatus(); }
+    }
+    if (!sameAccount(uId, epoch)) return { ok: false, reason: 'account-changed' };
+    if (sequence !== loadSequence) return { ok: false, reason: 'superseded' };
+    if (outcome.ok && options.sync !== false) syncPendingItems();
+    return outcome;
+  }
+  async function refreshDeviceCache() {
+    const id = ownerId();
+    if (!id) return { ok: false, reason: 'unauthenticated' };
+    if (refreshingOwners.has(id) || syncingOwners.has(id) || Array.from(syncingItems.keys()).some(key => key.startsWith(id + ':')) || drawing || geometryEditing) {
+      return { ok: false, reason: 'busy' };
+    }
+    refreshingOwners.add(id);
+    try { return await load({ sync: false }); }
+    finally { refreshingOwners.delete(id); emitSyncStatus(); }
   }
 
   function init(){
@@ -2203,6 +2392,9 @@
       exportQGIS: exportGeoJSONWithFilters,
       syncNow: syncPendingItems,
       getSyncStatus: getSyncStatus,
+      refreshDeviceCache: refreshDeviceCache,
+      getQuarantinedItems: getQuarantinedItems,
+      recoverQuarantinedCopy: recoverQuarantinedCopy,
       isDrawing: () => drawing || geometryEditing,
       isOpen: () => $('#fcu-perception-panel') && $('#fcu-perception-panel').classList.contains('is-open'),
       renderLegendControl: renderLegendControl
