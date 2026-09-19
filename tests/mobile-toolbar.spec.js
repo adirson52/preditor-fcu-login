@@ -7,16 +7,23 @@ const source = fs.readFileSync(path.join(root, 'perception.js'), 'utf8');
 const helper = source.slice(source.indexOf('  function makeElementDraggable('), source.indexOf('  // The database owns authorization'));
 const styles = ['perception.css', 'mobile.css'].map(file => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
 
-async function fixture(page, mobile = true, geometry = false) {
+async function fixture(page, mobile = true, geometry = false, withHeaderAction = false) {
   await page.route('**/*', route => route.abort());
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0}${styles}</style>
     <body class="${mobile ? 'fcu-mobile-simple' : ''}">
       ${mobile ? '<header class="fcu-mobile-topbar">Área e visualização</header><footer class="fcu-mobile-bottom"><div class="fcu-mobile-sync">Salvo no aparelho · Sincronizar</div><nav class="fcu-mobile-nav"><button>Mapa</button><button>Percepções</button><button>Conta</button></nav></footer>' : ''}
-      <div class="${geometry ? 'fcu-geometry-toolbar' : 'fcu-perception-drawnote'}" id="toolbar">
-        <div class="fcu-gis-head"><strong>Arraste o menu</strong><button id="header-action">Ajuda</button></div>
-        <div class="fcu-gis-toolbar"><div class="fcu-gis-group"><button class="fcu-gis-btn" id="regular-button">＋ Ponto</button><button class="fcu-gis-btn">Desfazer</button><button class="fcu-gis-btn">Limpar</button><button class="fcu-gis-btn">Cancelar</button><button class="fcu-gis-btn">✓ OK</button></div></div>
+      <div class="${geometry ? 'fcu-geometry-toolbar' : 'fcu-perception-drawnote fcu-gis-toolbar'}" id="toolbar" data-mobile-tools="collapsed">
+        ${geometry ? '<div><strong>Editar #FIXTURE</strong><span>Arraste os vértices, as alças ou o centro.</span></div>' : '<div class="fcu-gis-head"><span class="fcu-gis-badge">FERRAMENTA DE VÉRTICES</span><span class="fcu-gis-count">0 pontos</span><span class="fcu-gis-drag-hint">Arraste para mover</span></div>'}
+        <button type="button" class="fcu-mobile-tools-toggle" aria-expanded="false">Mais</button>
+        ${geometry ? '<div><button id="fcu-add-vertex">＋ Ponto</button><button id="fcu-remove-vertex" disabled>− Excluir</button><button id="fcu-editor-cancel" data-regular-button>↶ Restaurar</button><button id="fcu-editor-delete">Excluir desenho</button><button id="fcu-editor-ok">✓ OK</button></div>' : `
+          <div class="fcu-gis-guide-banner">Clique no mapa para posicionar o primeiro vértice.</div>
+          <div class="fcu-gis-tools">
+            <div class="fcu-gis-group" role="radiogroup" aria-label="Modo de desenho"><button id="fcu-mode-vertices" class="fcu-gis-btn">Pontos</button><button id="fcu-mode-freehand" class="fcu-gis-btn">Mão livre</button></div>
+            <div class="fcu-gis-group"><button id="fcu-undo" class="fcu-gis-btn" disabled>Desfazer</button><button id="fcu-clear" class="fcu-gis-btn" disabled>Limpar</button></div>
+            <div class="fcu-gis-group"><button id="fcu-cancel" class="fcu-gis-btn" data-regular-button>Cancelar</button><button id="fcu-finish" class="fcu-gis-btn">Concluir</button></div>
+          </div>`}
       </div>
     </body>`);
   await page.addScriptTag({ content: helper + `
@@ -38,8 +45,17 @@ async function fixture(page, mobile = true, geometry = false) {
       return originalRemove(type,fn,options);
     };
     window.__toolbarClicks = 0;
+    if (${withHeaderAction}) {
+      // An interactive descendant must never start the helper's drag. This
+      // fixture-only button stays inside the 44px handle instead of spilling
+      // over its real neighbouring controls, and is removed before dragging.
+      const help = document.createElement('button');
+      help.id='header-action'; help.textContent='?'; help.setAttribute('aria-label','Ajuda');
+      help.style.cssText='position:absolute;inset:0;width:44px;height:44px;min-height:44px;padding:0;z-index:2';
+      document.querySelector('#toolbar').firstElementChild.appendChild(help);
+    }
     document.querySelectorAll('button').forEach(button => button.onclick=()=>window.__toolbarClicks++);
-    window.__toolbarInstall(document.querySelector('#toolbar'),document.querySelector('.fcu-gis-head'));
+    window.__toolbarInstall(document.querySelector('#toolbar'),document.querySelector('#toolbar').firstElementChild);
   ` });
   return errors;
 }
@@ -67,7 +83,7 @@ for(const viewport of [{width:390,height:844},{width:768,height:1024}]) {
     test.use({viewport,hasTouch:true,isMobile:true});
     for(const geometry of [false,true]) test(`${geometry?'edição':'desenho'} arrasta pelo toque e mantém navegação livre`, async ({page}) => {
       const errors = await fixture(page,true,geometry);
-      const bar = page.locator('#toolbar'), head = page.locator('.fcu-gis-head');
+      const bar = page.locator('#toolbar'), head = page.locator('[data-fcu-drag-handle]');
       const before = await bar.boundingBox(), handle = await head.boundingBox();
       await touchDrag(page,{x:handle.x+35,y:handle.y+20},{x:handle.x+35,y:handle.y-130});
       await expect(bar).toHaveAttribute('data-mobile-floating','true');
@@ -90,12 +106,13 @@ for(const viewport of [{width:390,height:844},{width:768,height:1024}]) {
     });
 
     test('botões não arrastam; resize e remoção preservam limites sem listeners acumulados', async ({page}) => {
-      const errors = await fixture(page);
+      const errors = await fixture(page,true,false,true);
       await page.locator('#header-action').tap();
-      await page.locator('#regular-button').tap();
+      await page.locator('[data-regular-button]').tap();
       expect(await page.evaluate(() => window.__toolbarClicks)).toBe(2);
       await expect(page.locator('#toolbar')).not.toHaveAttribute('data-mobile-floating','true');
-      const handle = await page.locator('.fcu-gis-head').boundingBox();
+      await page.locator('#header-action').evaluate(button=>button.remove());
+      const handle = await page.locator('[data-fcu-drag-handle]').boundingBox();
       await touchDrag(page,{x:handle.x+30,y:handle.y+20},{x:handle.x+30,y:handle.y-100});
       await page.setViewportSize({width:330,height:620});
       await expect.poll(async () => (await safeBounds(page)).right).toBeLessThanOrEqual(323);
@@ -105,7 +122,7 @@ for(const viewport of [{width:390,height:844},{width:768,height:1024}]) {
         for(let count=0;count<6;count++) {
           const previous=document.querySelector('#toolbar'), next=previous.cloneNode(true);
           previous.remove();await Promise.resolve();document.body.appendChild(next);
-          window.__toolbarInstall(next,next.querySelector('.fcu-gis-head'));
+          window.__toolbarInstall(next,next.firstElementChild);
         }
       });
       expect(await page.evaluate(() => window.__trackedToolbarListeners.size)).toBe(1);
@@ -119,13 +136,13 @@ for(const viewport of [{width:390,height:844},{width:768,height:1024}]) {
 
 test('desktop continua arrastável pelo mouse e limitado ao viewport', async ({page}) => {
   const errors = await fixture(page,false);
-  const handle=await page.locator('.fcu-gis-head').boundingBox();
+  const handle=await page.locator('[data-fcu-drag-handle]').boundingBox();
   await page.mouse.move(handle.x+30,handle.y+12);await page.mouse.down();
   await page.mouse.move(20,240,{steps:8});await page.mouse.up();
   const bounds=await safeBounds(page);
   expect(bounds.left).toBeGreaterThanOrEqual(7);
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewport-7);
   expect(bounds.top).toBeGreaterThan(100);
-  await expect(page.locator('.fcu-gis-head')).toHaveCSS('cursor','grab');
+  await expect(page.locator('[data-fcu-drag-handle]')).toHaveCSS('cursor','grab');
   expect(errors).toEqual([]);
 });
