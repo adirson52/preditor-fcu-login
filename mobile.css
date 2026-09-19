@@ -53,6 +53,13 @@ body.fcu-mobile-simple .fcu-mobile-topbar .fcu-view-options { position:absolute;
 body.fcu-mobile-simple .fcu-mobile-topbar .fcu-view-options button { min-height:36px; font-size:11px; }
 body.fcu-mobile-simple .fcu-mobile-topbar::after { content:'Preditor FCU'; position:absolute; top:62px; left:0; color:#587181; font-size:11px; letter-spacing:.03em; }
 body.fcu-mobile-simple .fcu-mobile-bottom { display:block; position:fixed; left:0; right:0; bottom:0; padding:0 10px env(safe-area-inset-bottom); background:#f8fafb; border-top:1px solid #dbe3e9; z-index:15100; }
+/* Keep both explicit cookie choices above the fixed navigation, never behind it. */
+body.fcu-mobile-simple #preditor-location-consent {
+  bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom) + 8px);
+  z-index:15220;
+  max-height:calc(100dvh - var(--fcu-mobile-top) - var(--fcu-mobile-bottom) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+  overflow-y:auto;
+}
 .fcu-mobile-sync { display:flex; align-items:center; justify-content:center; gap:16px; height:34px; font:500 11px/1.2 Inter,system-ui,sans-serif; color:#637687; }
 .fcu-mobile-sync > span::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:#8192a2; margin-right:6px; vertical-align:1px; }
 .fcu-mobile-sync[data-tone="success"] > span::before { background:#16805d; }

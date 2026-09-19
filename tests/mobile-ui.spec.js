@@ -4,12 +4,41 @@ const fs = require('node:fs');
 test.beforeEach(async ({ page }) => {
   // These UI tests do not create telemetry events or accounts in production.
   await page.route('**/api/track**', route => route.fulfill({ status: 200, body: '{}' }));
+  await page.route('**/api/collect**', route => route.fulfill({ status: 200, body: '{}' }));
+  if (process.env.PREDITOR_MOBILE_CSS_OVERRIDE) {
+    await page.route('**/mobile.css*', route => route.fulfill({ contentType: 'text/css', body: fs.readFileSync(process.env.PREDITOR_MOBILE_CSS_OVERRIDE, 'utf8') }));
+  }
 });
 
-async function ready(page) {
+async function ready(page, handleConsent = true) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.PreditorMobile && window.PreditorPerception, null, { timeout: 60000 });
+  if (handleConsent && new URL(page.url()).hostname.endsWith('.vercel.app')) {
+    // The production-only banner asks an explicit choice; never force-click through it.
+    const basic = page.locator('#preditor-location-consent').getByRole('button', { name: 'Permitir o básico' });
+    const appeared = await basic.waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false);
+    if (appeared) await basic.click();
+  }
 }
+
+test('escolhas de cookies ficam acessíveis acima da navegação mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ready(page, false);
+  if (!new URL(page.url()).hostname.endsWith('.vercel.app')) {
+    // Exercise the unchanged, production-only consent implementation on localhost.
+    const telemetry = fs.readFileSync(require('node:path').join(__dirname, '..', 'telemetry.js'), 'utf8');
+    await page.addScriptTag({ content: telemetry.replace("if (!PRODUCTION_HOSTS.includes(window.location.hostname)) return;", "if (!PRODUCTION_HOSTS.includes(window.location.hostname) && window.location.hostname !== '127.0.0.1') return;") });
+  }
+  const basic = page.locator('#preditor-location-consent').getByRole('button', { name: 'Permitir o básico' });
+  await expect(basic).toBeVisible();
+  const button = await basic.boundingBox();
+  const navigation = await page.locator('.fcu-mobile-bottom').boundingBox();
+  expect(button.y + button.height).toBeLessThan(navigation.y);
+  await basic.click();
+  await expect(page.locator('#preditor-location-consent')).toHaveCount(0);
+  await page.locator('.fcu-perception-button').click();
+  await expect(page.locator('#fcu-perception-panel')).toHaveClass(/is-open/);
+});
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 }]) {
   test(`mapa simplificado automático e sheet em ${viewport.width}px`, async ({ page }) => {
