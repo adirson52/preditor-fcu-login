@@ -7,10 +7,11 @@ const vm = require('node:vm');
 const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
 
 // Exercise the real form handlers without creating accounts or sending messages.
-function fixture({ responses = [], login = { data: {}, error: { message: 'offline' } } } = {}) {
+function fixture({ responses = [], account = { account_status: 'active', session_valid: true }, login = { data: {}, error: { message: 'offline' } } } = {}) {
   const elements = new Map();
   const requests = [];
   const authCalls = [];
+  const signouts = [];
   function element(id) {
     if (elements.has(id)) return elements.get(id);
     const classes = new Set();
@@ -34,14 +35,17 @@ function fixture({ responses = [], login = { data: {}, error: { message: 'offlin
       getUser: async () => ({ data: { user: null } }),
       onAuthStateChange() {},
       signInWithPassword: async payload => { authCalls.push(payload); return login; },
+      signOut: async options => { signouts.push(options); return {}; },
       signUp: async () => { throw new Error('Direct signUp fallback must not run'); },
       resetPasswordForEmail: async () => { throw new Error('SMTP recovery must not run'); }
     },
-    from() { throw new Error('Anonymous direct database writes must not run'); }
+    from() { throw new Error('Anonymous direct database writes must not run'); },
+    rpc: async name => { assert.equal(name, 'fcu_my_account_status'); return account instanceof Error ? { error: account } : { data: account }; }
   };
   const window = {
     supabase: { createClient: () => client },
     setTimeout: () => 1, clearTimeout() {},
+    setInterval: () => 1, addEventListener() {}, navigator: { onLine: true },
     history: { replaceState() {} }
   };
   const context = vm.createContext({
@@ -63,7 +67,7 @@ function fixture({ responses = [], login = { data: {}, error: { message: 'offlin
   });
   vm.runInContext(code, context);
   return {
-    element, requests, authCalls, window,
+    element, requests, authCalls, signouts, window,
     async submit(id, values) {
       const form = element(id);
       form.values = values;
@@ -148,4 +152,32 @@ test('confirmed account and session close the modal and clear the password form'
   assert.equal(app.window.PreditorAuth.user.email, contact.email);
   assert.equal(result.form.resetCalled, true);
   assert.equal(result.text, '');
+});
+
+test('suspended or deleted accounts close only the local session and preserve drafts', async () => {
+  for (const account_status of ['suspended', 'deleted']) {
+    const app = fixture({ account: { account_status, session_valid: false }, login: { data: { user: { id: 'qa', email: contact.email } } } });
+    const result = await app.submit('fcu-login-form', signup);
+    assert.equal(app.window.PreditorAuth.user, null);
+    assert.equal(app.signouts.length, 1);
+    assert.equal(app.signouts[0].scope, 'local');
+    assert.equal(result.error, true);
+    assert.match(result.text, /preservad/);
+  }
+});
+
+test('unavailable account-status service does not report login success or erase session', async () => {
+  const app = fixture({ account: new Error('network'), login: { data: { user: { id: 'qa', email: contact.email } } } });
+  const result = await app.submit('fcu-login-form', signup);
+  assert.equal(app.signouts.length, 0);
+  assert.equal(app.window.PreditorAuth.user.id, 'qa');
+  assert.equal(result.error, true);
+  assert.match(result.text, /não foi possível confirmar o acesso/);
+});
+
+test('revoked session asks for new login without using metadata as authorization', async () => {
+  const app = fixture({ account: { account_status: 'active', session_valid: false }, login: { data: { user: { id: 'qa', email: contact.email, user_metadata: { account_status: 'active' } } } } });
+  const result = await app.submit('fcu-login-form', signup);
+  assert.equal(app.window.PreditorAuth.user, null);
+  assert.match(result.text, /Entre novamente/);
 });

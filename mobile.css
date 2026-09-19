@@ -1,0 +1,143 @@
+/* Opt-in presentation layer: the complete dashboard and its model are unchanged. */
+.fcu-mobile-topbar,.fcu-mobile-bottom,.fcu-mobile-area-shade,.fcu-sheet-controls { display:none; }
+.fcu-sidebar-view { margin:0 0 18px; }
+.fcu-sidebar-view > small { display:block; color:#64748b; margin-bottom:6px; font-size:11px; }
+.fcu-view-options { display:flex; gap:3px; background:#edf2f5; border-radius:11px; padding:3px; }
+.fcu-view-options button { border:0; background:transparent; color:#526477; min-height:40px; padding:7px 10px; border-radius:8px; font:600 12px/1.2 Inter,system-ui,sans-serif; cursor:pointer; }
+.fcu-view-options button[aria-pressed="true"] { background:white; color:#07324d; box-shadow:0 1px 4px #07324d1c; }
+.fcu-mobile-quick-mode { display:none; margin-left:auto; border:1px solid #d5dce7; padding:8px 10px; min-height:40px; color:#5c477b; border-radius:10px; background:#f4f0f9; font-weight:650; }
+body.fcu-mobile-simple { --fcu-mobile-top:98px; --fcu-mobile-bottom:94px; overflow:hidden!important; background:#f0f4f5; }
+body.fcu-mobile-simple .mobile-toolbar,
+body.fcu-mobile-simple .desktop-sidebar-toggle,
+body.fcu-mobile-simple #dashboard-content > header,
+body.fcu-mobile-simple .site-nav-links,
+body.fcu-mobile-simple .tab-nav,
+body.fcu-mobile-simple #tab-view-1 > .card:not(.fcu-mobile-map-card),
+body.fcu-mobile-simple .fcu-mobile-map-card > h2,
+body.fcu-mobile-simple .local-charts-layout,
+body.fcu-mobile-simple #local-details,
+body.fcu-mobile-simple .local-search-panel,
+body.fcu-mobile-simple .site-footer,
+body.fcu-mobile-simple #fcu-auth-button,
+body.fcu-mobile-simple .map-panel-control,
+body.fcu-mobile-simple .map-size-control { display:none!important; }
+body.fcu-mobile-simple .leaflet-control-minimap,
+body.fcu-mobile-simple .rf-minimap-control { display:none!important; }
+body.fcu-mobile-simple .main { margin:0!important; width:100%!important; padding:0!important; overflow:hidden; }
+body.fcu-mobile-simple .container { max-width:none; margin:0; padding:0; }
+body.fcu-mobile-simple .fcu-mobile-map-card,
+body.fcu-mobile-simple .controls-area,
+body.fcu-mobile-simple .local-map-layout { padding:0; margin:0; border:0; box-shadow:none; display:block; }
+body.fcu-mobile-simple .local-map-panel {
+  position:fixed!important; top:calc(var(--fcu-mobile-top) + env(safe-area-inset-top)); bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom)); left:8px; right:8px;
+  width:auto!important; height:auto!important; min-height:0!important; max-height:none!important; border:1px solid #dce5e9; border-radius:18px; overflow:hidden; z-index:10;
+}
+body.fcu-mobile-simple #map { width:100%!important; height:100%!important; min-height:0!important; max-height:none!important; border-radius:17px; }
+body.fcu-mobile-simple .map-search-overlay { top:10px; left:58px; right:10px; width:auto; max-width:none; }
+body.fcu-mobile-simple .map-search-box input { font-size:16px; min-height:44px; padding:9px 12px; }
+body.fcu-mobile-simple .map-search-toggle { min-width:36px; min-height:44px; }
+body.fcu-mobile-simple .leaflet-control-zoom a,
+body.fcu-mobile-simple .map-location-button { width:38px; height:40px; line-height:40px; }
+body.fcu-mobile-simple .fcu-map-mode-control { top:64px; right:10px; }
+body.fcu-mobile-simple .fcu-perception-map-tools { right:10px; bottom:24px; }
+body.fcu-mobile-simple .fcu-perception-button { min-height:44px; background:#f4f0f9; color:#684d83; border:1px solid #d8cce3; box-shadow:0 2px 10px #35284914; font-size:12px; padding:10px 13px; }
+body.fcu-mobile-simple .fcu-mobile-topbar {
+  position:fixed; display:flex; flex-direction:column; gap:3px; justify-content:flex-start; padding-top:4px; box-sizing:border-box; top:env(safe-area-inset-top); left:12px; right:12px; height:var(--fcu-mobile-top); z-index:1000;
+}
+#fcu-mobile-area { display:flex; gap:10px; align-items:center; border:0; padding:3px 0; text-align:left; background:transparent; color:#07324d; width:100%; min-height:44px; }
+#fcu-mobile-area > span:first-child { display:grid; place-items:center; border-radius:10px; background:white; width:42px; height:40px; border:1px solid #dce5e9; font-size:19px; flex-shrink:0; }
+#fcu-mobile-area > span:last-child { overflow:hidden; }
+#fcu-mobile-area small { color:#64748b; display:block; font-size:10px; }
+#fcu-mobile-area strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+body.fcu-mobile-simple .fcu-mobile-topbar .fcu-view-options { position:absolute; top:48px; right:0; padding:2px; }
+body.fcu-mobile-simple .fcu-mobile-topbar .fcu-view-options button { min-height:36px; font-size:11px; }
+body.fcu-mobile-simple .fcu-mobile-topbar::after { content:'Preditor FCU'; position:absolute; top:62px; left:0; color:#587181; font-size:11px; letter-spacing:.03em; }
+body.fcu-mobile-simple .fcu-mobile-bottom { display:block; position:fixed; left:0; right:0; bottom:0; padding:0 10px env(safe-area-inset-bottom); background:#f8fafb; border-top:1px solid #dbe3e9; z-index:15100; }
+.fcu-mobile-sync { display:flex; align-items:center; justify-content:center; gap:16px; height:34px; font:500 11px/1.2 Inter,system-ui,sans-serif; color:#637687; }
+.fcu-mobile-sync > span::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:#8192a2; margin-right:6px; vertical-align:1px; }
+.fcu-mobile-sync[data-tone="success"] > span::before { background:#16805d; }
+.fcu-mobile-sync[data-tone="pending"] > span::before { background:#b27813; }
+.fcu-mobile-sync button { min-height:34px; border:0; background:transparent; color:#466176; font:600 11px Inter,system-ui,sans-serif; cursor:pointer; }
+.fcu-mobile-sync button:disabled { opacity:.6; cursor:wait; }
+.fcu-mobile-nav { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; height:60px; }
+.fcu-mobile-nav button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:0; background:transparent; color:#688093; border-radius:12px; margin:0 0 6px; font:600 11px/1.1 Inter,system-ui,sans-serif; cursor:pointer; }
+.fcu-mobile-nav button[aria-pressed="true"] { background:#ede8f4; color:#684d83; }
+.fcu-mobile-nav button:disabled,.fcu-view-options button:disabled,#fcu-mobile-area:disabled { opacity:.45; cursor:not-allowed; }
+.fcu-mobile-nav svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; }
+body.fcu-mobile-simple .sidebar { position:fixed!important; inset:0 auto 0 0; z-index:15210!important; width:min(310px,86vw)!important; height:100dvh!important; padding:24px 18px!important; transform:translateX(-110%)!important; transition:transform .2s ease; overflow:auto; background:white; }
+body.fcu-mobile-simple.fcu-mobile-areas-open .sidebar { transform:translateX(0)!important; }
+body.fcu-mobile-simple.fcu-mobile-areas-open .fcu-mobile-area-shade { display:block; position:fixed; inset:0; background:#07324d66; border:0; z-index:15200; }
+body.fcu-mobile-simple .sidebar-overlay { display:none!important; }
+body.fcu-mobile-simple .fcu-perception-shade { display:none!important; }
+body.fcu-mobile-simple .fcu-perception-panel {
+  inset:auto 8px calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom)) 8px; width:auto; height:43dvh; min-height:180px; max-height:calc(100dvh - var(--fcu-mobile-top) - var(--fcu-mobile-bottom) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding:0 14px 18px; border:1px solid #d6dce6; border-radius:20px 20px 0 0; box-shadow:0 -6px 26px #07324d24; transform:translateY(calc(100% + 110px)); transition:height .18s ease,transform .18s ease; overscroll-behavior:contain; scroll-padding-top:64px; -webkit-overflow-scrolling:touch;
+}
+body.fcu-mobile-simple .fcu-perception-panel.is-open { transform:translateY(0); }
+body.fcu-mobile-simple .fcu-perception-panel[data-mobile-sheet="expanded"] { height:70dvh; }
+body.fcu-mobile-simple .fcu-perception-panel[data-mobile-sheet="peek"] { height:68px; min-height:68px; overflow:hidden; }
+body.fcu-mobile-simple .fcu-sheet-controls { display:flex; align-items:center; position:sticky; top:0; z-index:35; background:white; margin:0 -2px 10px; min-height:60px; border-bottom:1px solid #edf0f4; }
+.fcu-sheet-handle { position:relative; display:flex; align-items:center; justify-content:space-between; gap:12px; flex:1; min-width:0; border:0; background:white; color:#07324d; min-height:59px; padding:13px 10px 0 0; font:700 14px Inter,system-ui,sans-serif; touch-action:none; cursor:ns-resize; }
+.fcu-sheet-handle i { position:absolute; top:7px; left:calc(50% - 8px); width:34px; height:4px; border-radius:3px; background:#cbd3df; }
+.fcu-sheet-action { color:#795e95; font-size:11px; font-weight:600; }
+.fcu-sheet-close { flex-shrink:0; width:44px; height:44px; border:0; border-radius:50%; background:#f4f5f8; color:#52677a; font-size:23px; }
+body.fcu-mobile-simple .fcu-perception-head { display:none; }
+body.fcu-mobile-simple .fcu-perception-form-head { position:static; margin:0 0 6px; padding:0; border:0; }
+body.fcu-mobile-simple .fcu-perception-form-head .fcu-perception-close { display:none; }
+body.fcu-mobile-simple .fcu-form-back { min-height:40px; }
+body.fcu-mobile-simple .fcu-context-card { padding:10px; margin:8px 0; }
+body.fcu-mobile-simple .fcu-context-card .fcu-help,
+body.fcu-mobile-simple #fcu-perception-start > .fcu-help { display:none!important; }
+body.fcu-mobile-simple .fcu-context-card:not(.fcu-mobile-has-cell) { border:0; background:none; padding:0; }
+body.fcu-mobile-simple .fcu-context-card:not(.fcu-mobile-has-cell) > * { display:none; }
+body.fcu-mobile-simple .fcu-context-card:not(.fcu-mobile-has-cell)::before { content:'Toque numa célula ou desenhe sua área.'; display:block; color:#617989; font-size:13px; margin:4px 0 12px; }
+body.fcu-mobile-simple #fcu-export-geojson { display:none; }
+body.fcu-mobile-simple .fcu-perception-primary,
+body.fcu-mobile-simple .fcu-perception-secondary { min-height:44px; padding:11px 12px; font-size:13px; }
+body.fcu-mobile-simple .fcu-perception-secondary { color:#654c7e; border-color:#d8cce3; }
+body.fcu-mobile-simple .fcu-filter-box summary,
+body.fcu-mobile-simple .fcu-extra-details summary { min-height:34px; display:flex; align-items:center; font-size:13px; }
+body.fcu-mobile-simple .fcu-perception-item-actions button { min-height:42px; }
+body.fcu-mobile-simple .fcu-choice { min-height:46px; padding:10px; margin:7px 0; }
+body.fcu-mobile-simple .fcu-perception-form input,
+body.fcu-mobile-simple .fcu-perception-form textarea,
+body.fcu-mobile-simple .fcu-perception-form select { font-size:16px; }
+body.fcu-mobile-simple .fcu-perception-form > button[type="submit"] { position:sticky; bottom:0; margin-top:12px; z-index:10; box-shadow:0 0 0 6px white; }
+body.fcu-mobile-simple .fcu-account-page { bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom)); z-index:15050; }
+body.fcu-mobile-simple .fcu-account-topbar { min-height:64px; padding:8px 14px; margin:0; }
+body.fcu-mobile-simple .fcu-account-brand { gap:7px; }
+body.fcu-mobile-simple .fcu-account-brand h1 { font-size:15px; }
+body.fcu-mobile-simple .fcu-account-brand span { display:none; }
+body.fcu-mobile-simple .fcu-account-back-btn { min-height:44px; padding:8px 12px; }
+body.fcu-mobile-simple .fcu-account-header-section p { display:none; }
+body.fcu-mobile-simple .fcu-account-header-section h2 { font-size:20px; }
+body.fcu-mobile-simple .fcu-account-card { padding:16px; min-width:0; overflow-wrap:anywhere; }
+body.fcu-mobile-simple .fcu-account-grid { grid-template-columns:minmax(0,1fr); }
+body.fcu-mobile-simple .fcu-account-card-head { flex-wrap:wrap; }
+body.fcu-mobile-simple .fcu-qgis-field { min-width:0; }
+body.fcu-mobile-simple .fcu-qgis-field input,
+body.fcu-mobile-simple .fcu-qgis-field select,
+body.fcu-mobile-simple .fcu-acc-field input { width:100%; max-width:100%; min-width:0; box-sizing:border-box; font-size:16px; }
+body.fcu-mobile-simple .fcu-qgis-counter-banner { flex-wrap:wrap; gap:6px; }
+body.fcu-mobile-simple .fcu-auth-backdrop { z-index:16000; }
+body.fcu-mobile-simple .fcu-perception-drawnote,
+body.fcu-mobile-simple .fcu-geometry-toolbar { top:auto!important; bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom) + 8px)!important; left:8px!important; right:8px!important; width:auto!important; min-width:0; max-width:none; transform:none!important; max-height:40dvh; overflow-y:auto; border-radius:14px; flex-wrap:wrap; padding:10px; }
+body.fcu-mobile-simple .fcu-perception-drawnote button,
+body.fcu-mobile-simple .fcu-geometry-toolbar button { min-height:42px; }
+body.fcu-mobile-simple.fcu-mobile-drawing .fcu-perception-map-tools { display:none; }
+body.fcu-mobile-simple :focus-visible { outline:3px solid #8366a2; outline-offset:2px; }
+@media (min-width:700px) {
+  body.fcu-mobile-simple { --fcu-mobile-top:70px; --fcu-mobile-bottom:92px; }
+  body.fcu-mobile-simple .fcu-mobile-topbar { flex-direction:row; align-items:center; gap:20px; padding-top:0; }
+  body.fcu-mobile-simple .fcu-mobile-topbar .fcu-view-options { position:static; flex-shrink:0; }
+  body.fcu-mobile-simple .fcu-mobile-topbar::after { display:none; }
+  body.fcu-mobile-simple .fcu-perception-panel { width:min(440px,calc(100vw - 16px)); left:auto; right:8px; }
+  body.fcu-mobile-simple .fcu-mobile-nav { max-width:560px; margin:0 auto; }
+}
+@media (prefers-reduced-motion:reduce) { body.fcu-mobile-simple .fcu-perception-panel,body.fcu-mobile-simple .sidebar { transition:none; } }
+@media (max-width:900px) {
+  body:not(.fcu-mobile-simple) .mobile-toolbar { gap:8px; }
+  body:not(.fcu-mobile-simple) .mobile-toolbar-title { font-size:13px; }
+  .fcu-mobile-quick-mode { display:block; margin-right:84px; min-height:36px; padding:6px 8px; font-size:11px; }
+}
+@media (max-width:350px) { body:not(.fcu-mobile-simple) .mobile-toolbar-title { display:none; } }

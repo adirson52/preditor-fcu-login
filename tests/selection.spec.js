@@ -91,9 +91,13 @@ for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 
   });
 }
 
-test('dashboard keeps the selection link after navigation is initialized', async ({ page }) => {
+test('dashboard preserves the published home, guide and project navigation', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('.site-nav-links a[href="/selecaovariaveis"]')).toHaveCount(1);
+  // The published dashboard no longer has the old methodological-selection shortcut.
+  // Its standalone page is verified above; keep the existing public menu unchanged.
+  await expect(page.locator('.site-nav-links a[href="./"]')).toHaveCount(1);
+  await expect(page.locator('.site-nav-links a[href="guia.html"]')).toHaveCount(1);
+  await expect(page.locator('.site-nav-links a[target="_blank"]')).toHaveCount(1);
 });
 
 test('full candidate catalogue uses the actual sources and temporal pairs', async ({ page }) => {

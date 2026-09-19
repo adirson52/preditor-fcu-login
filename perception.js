@@ -26,7 +26,7 @@
   const LOCAL_STORAGE_KEY = 'preditor_fcu_local_perceptions_v4:';
   const LEGACY_STORAGE_KEYS = ['preditor_fcu_local_perceptions_v3', 'preditor_fcu_local_perceptions_v2', 'preditor_fcu_local_perceptions_v1', 'fcu_perceptions_v1'];
   // Keep old caches intact: only records with an explicit matching owner migrate.
-  let accountEpoch = 0, loadedOwner = null, loadSequence = 0, authOwner;
+  let accountEpoch = 0, loadedOwner = null, loadSequence = 0, authOwner, lastLoadedAt = null, cloudAvailable = null;
   const syncingItems = new Map();
   const syncingOwners = new Set();
 
@@ -129,6 +129,42 @@
   function sameAccount(id, epoch) { return ownerId() === id && accountEpoch === epoch; }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function cacheKey(id) { return LOCAL_STORAGE_KEY + id; }
+  function getSyncStatus() {
+    const id = ownerId();
+    let records = [], storageAvailable = true;
+    try {
+      const raw = id && localStorage.getItem(cacheKey(id));
+      if (raw) records = (JSON.parse(raw).items || []).filter(record => owns(record, id));
+    } catch (_) { storageAvailable = false; }
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    return {
+      ownerId: id, total: records.length,
+      pending: records.filter(record => record._sync_status === 'pending').length,
+      synced: records.filter(record => record._sync_status === 'synced').length,
+      conflicts: records.filter(record => record._sync_status === 'conflict').length,
+      localOnly: records.filter(record => !['pending', 'synced', 'conflict'].includes(record._sync_status)).length,
+      syncing: !!id && (syncingOwners.has(id) || Array.from(syncingItems.keys()).some(key => key.startsWith(id + ':'))),
+      offline, online: !offline, storageAvailable, lastLoadedAt, cloudAvailable
+    };
+  }
+  function emitSyncStatus() {
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('preditor:perception-sync-state', { detail: getSyncStatus() }));
+    }
+  }
+  async function mayAccessCloud(id, epoch) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      cloudAvailable = false; emitSyncStatus(); return false;
+    }
+    const verify = window.PreditorAuth && window.PreditorAuth.verifyAccount;
+    let allowed = true;
+    try { if (typeof verify === 'function') allowed = await verify(); }
+    catch (_) { allowed = null; }
+    if (!sameAccount(id, epoch)) return false;
+    cloudAvailable = allowed === true;
+    emitSyncStatus();
+    return cloudAvailable;
+  }
   function getLocalItems(id = ownerId()) {
     if (!id) return [];
     const raw = localStorage.getItem(cacheKey(id));
@@ -158,6 +194,7 @@
   function setLocalItems(list, id = ownerId()) {
     if (!id || list.some(x => !owns(x, id))) throw new Error('Perception owner mismatch');
     localStorage.setItem(cacheKey(id), JSON.stringify({ schema: 4, items: list }));
+    if (id === ownerId()) emitSyncStatus();
   }
   function saveLocalItem(item, id = ownerId()) {
     if (!owns(item, id)) throw new Error('Perception owner mismatch');
@@ -266,13 +303,14 @@
     const id = ownerId(), epoch = accountEpoch;
     if (!client() || !id || syncingOwners.has(id)) return;
     syncingOwners.add(id);
+    emitSyncStatus();
     try {
       for (const item of getLocalItems(id).filter(x => x._sync_status === 'pending')) {
         if (!sameAccount(id, epoch)) break;
         await syncSingleItemToSupabase(item);
       }
     } catch (_) { status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true); }
-    finally { syncingOwners.delete(id); }
+    finally { syncingOwners.delete(id); emitSyncStatus(); }
   }
   async function syncSingleItemToSupabase(item) {
     const id = ownerId(), epoch = accountEpoch, c = client();
@@ -281,6 +319,7 @@
     if (syncingItems.has(lock)) return syncingItems.get(lock);
     const work = (async () => {
       try {
+        if (!(await mayAccessCloud(id, epoch))) return false;
         let current = getLocalItems(id).find(x => x.id === item.id);
         if (!current) return false;
         // A fixed batch permits new local edits during an in-flight request.
@@ -339,8 +378,9 @@
       }
     })();
     syncingItems.set(lock, work);
+    emitSyncStatus();
     try { return await work; }
-    finally { syncingItems.delete(lock); }
+    finally { syncingItems.delete(lock); emitSyncStatus(); }
   }
 
   function updateListBadges() {
@@ -2025,6 +2065,8 @@
     if (loadedOwner === id) return;
     loadedOwner = id;
     accountEpoch++;
+    lastLoadedAt = null;
+    cloudAvailable = null;
     items = [];
     layers.clearLayers();
     layerById.clear();
@@ -2035,6 +2077,7 @@
     const profile = $('#fcu-account-content');
     if (profile) profile.innerHTML = '';
     renderItemsUI();
+    emitSyncStatus();
   }
 
   async function load(){
@@ -2058,6 +2101,7 @@
       renderItemsUI();
       const c = client();
       if (c) {
+        if (!(await mayAccessCloud(uId, epoch))) return;
         const serverRows = await readAllOwned(c, 'fcu_perceptions', '*', uId, epoch, 'created_at');
         if (sameAccount(uId, epoch) && sequence === loadSequence) {
           let versions = [];
@@ -2096,8 +2140,10 @@
           const mergedList = Array.from(localMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
           setLocalItems(mergedList, uId);
           items = mergedList;
+          lastLoadedAt = new Date().toISOString();
           renderLayers();
           renderItemsUI(counts);
+          emitSyncStatus();
         }
       }
     } catch (_) { if (sameAccount(uId, epoch)) status('Não foi possível atualizar a nuvem agora. Os desenhos locais foram preservados.', true); }
@@ -2132,6 +2178,7 @@
     syncPendingItems();
     
     window.addEventListener('online', () => load());
+    window.addEventListener('offline', () => emitSyncStatus());
     window.addEventListener('focus', () => load());
     window.addEventListener('storage', event => { if (ownerId() && event.key === cacheKey(ownerId())) load(); });
     setInterval(() => syncPendingItems(), 15000);
@@ -2155,6 +2202,7 @@
       closeProfile: closeProfilePanel,
       exportQGIS: exportGeoJSONWithFilters,
       syncNow: syncPendingItems,
+      getSyncStatus: getSyncStatus,
       isDrawing: () => drawing || geometryEditing,
       isOpen: () => $('#fcu-perception-panel') && $('#fcu-perception-panel').classList.contains('is-open'),
       renderLegendControl: renderLegendControl

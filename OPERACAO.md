@@ -28,7 +28,18 @@ Cadastro automático pelo servidor da Master, senha mínima de seis caracteres, 
 - Atualizações comparam a data da versão original; se outro dispositivo alterou a mesma percepção, não sobrescrevem silenciosamente a versão remota. A interface permite preservar a edição local como uma cópia separada.
 - Ao retornar à janela, recuperar a conexão e periodicamente em primeiro plano, o cliente consulta atualizações.
 - Os caches antigos permanecem preservados. Registros sem proprietário explícito não são atribuídos automaticamente a outra conta.
-- Arquivar/restaurar percepção não equivale a excluir permanentemente um usuário. A função antiga de exclusão de usuários da Master continua destrutiva; usar bloqueio quando precisar preservar todo o histórico.
+- Arquivar/restaurar percepção é reversível. A exclusão de contas pela Master também passa a ser reversível: suspende o acesso e move para a lixeira, preservando perfil, mensagens, percepções e revisões.
+
+## Interface móvel e contas — complemento de 19/09/2026
+
+- Até 1.024 px, a apresentação inicial é **Simplificado**: mapa, áreas de estudo e navegação inferior Mapa/Percepções/Conta. A escolha Simplificado/Completo fica salva neste navegador. O painel de percepções pode ser expandido ou recolhido sem encobrir todo o mapa.
+- O indicador distingue **Neste aparelho**, **Enviando**, **Salvo online**, **Sem conexão** e conflitos. Um rascunho local não é backup: não limpar dados do navegador enquanto houver pendências. O mapa-base e o primeiro carregamento continuam dependendo da internet; não é um aplicativo offline completo.
+- Os dados online são compartilhados pela mesma conta. Sessões do navegador interno do WhatsApp, Chrome e atalho instalado podem ter armazenamentos separados e exigir login próprio. Não foi implementada autenticação por digital/passkey.
+- A Master administra Ativos/Suspensos/Lixeira e restaura contas. Se a conta estava suspensa antes de ir à lixeira, continua suspensa após restaurar.
+- A migração `participant_account_lifecycle` acrescenta controles e auditoria privados e políticas restritivas nas cinco tabelas dos participantes. O estado é verificado no banco, não em metadados editáveis do usuário.
+- Suspender, excluir, restaurar, reativar ou redefinir senha invalida o acesso de sessões anteriores aos dados protegidos. Restaurar/reativar exige novo login. O cliente verifica ao entrar, recuperar conexão, retornar à tela e a cada 45 segundos em primeiro plano. Isso não apaga cópias que já estavam salvas num aparelho offline.
+- Sair encerra a sessão deste dispositivo, sem desconectar outros dispositivos ativos. Rascunhos locais continuam separados pelo proprietário.
+- Recuperação continua manual pela equipe. A senha redefinida solicita troca no próximo acesso; confirmar a identidade por canal conhecido antes de entregar a senha temporária. O pedido público de recuperação não prova propriedade do e-mail.
 
 ## Rotina segura de publicação
 
@@ -38,8 +49,8 @@ Cadastro automático pelo servidor da Master, senha mínima de seis caracteres, 
 4. Publicar candidato na Vercel, conferir arquivos e endpoints, e só então promover. O projeto LoginPercp também possui integração com GitHub; considerar o deploy automático de `main` antes de um push.
 5. Comparar os arquivos servidos com os fontes e registrar o commit publicado.
 
-## O que não foi validado integralmente nesta etapa
+## Validação e limites
 
-Por solicitação do responsável, a bateria completa em celulares, múltiplos navegadores, contas reais, exportações e todos os fluxos administrativos fica para depois. Testes simulados e checagens pontuais de publicação não equivalem à aprovação completa em produção.
+A bateria autorizada usa contas sintéticas identificadas como QA técnico e sessões de navegador independentes contra o banco real. Foram exercitados criação, geometria idêntica em outra sessão, edição offline, reconexão, conflitos, lixeira de percepções, histórico e exportação. Testes móveis usam emulação de viewport/toque; não substituem o teste final em aparelhos físicos Android/iOS e no navegador interno do WhatsApp. Os relatórios detalhados ficam fora do Git em `D:\preditor-maintenance-backups\2026-09-19-mobile-qa`.
 
-As correções de cache/concorrência não exigem migração do banco. A rotação da chave de serviço exposta anteriormente na Master é uma pendência de segurança independente: atualizar os consumidores e revogar a chave antiga no painel Supabase, sem enviar chaves por chat.
+A interface e sincronização desta etapa pertencem somente ao LoginPercp; o Preditor original não recebe esses arquivos. A rotação de chaves anteriormente expostas permanece fora desta etapa, por decisão do responsável. Não publicar backups, credenciais de QA, tokens ou arquivos de ambiente.

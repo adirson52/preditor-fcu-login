@@ -75,14 +75,14 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
     renderLayers = () => {}; renderItemsUI = () => {}; closeProfilePanel = () => {}; status = () => {};
     globalThis.api = { getLocalItems, setLocalItems, saveLocalItem, markPending, syncSingleItemToSupabase,
       syncPendingItems, mergeHistory, load, preserveConflictCopy, perceptionPayload, resetForAccount,
-      readAllOwned, ownerId, generateUUID,
+      readAllOwned, ownerId, generateUUID, getSyncStatus,
       visible: () => items, queue: (item, previous) => { markPending(item, previous); saveLocalItem(item); return item; },
       setOwner: id => { authOwner = id; window.PreditorAuth.user = id ? { id, user_metadata: {} } : null; resetForAccount(id); }
     };
   })();`, context);
   const api = context.api;
   api.resetForAccount(USER_A);
-  return { api, storage, server, calls, writes, state, intercept: fn => { interceptor = fn; } };
+  return { api, storage, server, calls, writes, state, intercept: fn => { interceptor = fn; }, verifyWith: fn => { window.PreditorAuth.verifyAccount = fn; } };
 }
 
 test('legacy caches migrate only explicit owner records and remain untouched', () => {
@@ -341,4 +341,36 @@ test('acknowledging an already-counted cloud version does not increment it again
   assert.equal(await h.api.syncSingleItemToSupabase(pending), true);
   assert.equal(h.api.getLocalItems()[0].version_count, 1);
   assert.equal(h.writes.length, 0);
+});
+
+test('read-only mobile status does not migrate cache or claim an initial cloud load', () => {
+  const h = harness({ legacy: [perception()] });
+  const keys = h.storage.size;
+  const state = h.api.getSyncStatus();
+  assert.equal(state.lastLoadedAt, null);
+  assert.equal(state.cloudAvailable, null);
+  assert.equal(state.total, 0);
+  assert.equal(h.storage.size, keys);
+  assert.equal(Object.hasOwn(state, 'geometry'), false);
+});
+
+test('unavailable account verification preserves synced cache without treating empty RLS as deletion', async () => {
+  const h = harness();
+  h.api.saveLocalItem(perception({ _sync_status: 'synced', _server_updated_at: '2026-09-19T10:00:00Z' }));
+  h.verifyWith(async () => null);
+  await h.api.load();
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'synced');
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.api.getSyncStatus().cloudAvailable, false);
+  assert.equal(h.api.getSyncStatus().lastLoadedAt, null);
+});
+
+test('denied or unavailable account verification does not drain pending revisions', async () => {
+  const h = harness(), row = h.api.queue(perception());
+  h.verifyWith(async () => false);
+  assert.equal(await h.api.syncSingleItemToSupabase(row), false);
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'pending');
+  assert.equal(h.api.getLocalItems()[0]._pending_versions.length, 1);
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.calls.length, 0);
 });

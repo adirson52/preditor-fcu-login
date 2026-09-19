@@ -5,17 +5,19 @@ test('percepção contextual preserva o mapa e oferece filtros próprios', async
   await page.waitForFunction(() => window.PreditorPerception && document.querySelector('.fcu-perception-button'));
 
   await page.evaluate(() => {
-    window.__PREDITOR_APP__.selectedSample = {
+    const selected = {
       id: 'CELULA_TESTE_PERCEPCAO', lat: -23.55, lng: -46.63, proba: 0.82,
       ranking_candidato: 1, scope: 'area_conc_urb_sao_paulo', res_m: 50
     };
-    document.querySelector('.fcu-perception-button').click();
+    window.PreditorApp.currentSample = selected;
+    window.PreditorApp.selectedSample = selected;
+    window.PreditorPerception.openForCell();
   });
 
-  await expect(page.locator('#fcu-context-card')).toContainText('Célula selecionada');
-  await expect(page.locator('#fcu-context-card')).toContainText('Preditor:');
+  await expect(page.locator('#fcu-context-card')).toContainText('Célula Selecionada no Mapa');
+  await expect(page.locator('#fcu-context-card')).toContainText('Resultado IA:');
   await expect(page.locator('#fcu-context-card')).toContainText('Concordo com o resultado');
-  await expect(page.locator('#fcu-context-card')).toContainText('Vejo esta área diferente');
+  await expect(page.locator('#fcu-context-card')).toContainText('Discordo da análise');
   await expect(page.locator('[data-class-filter]')).toHaveCount(4);
   await expect(page.locator('[data-action-filter]')).toHaveCount(3);
   await expect(page.locator('[name="knowledge_source"]')).toHaveCount(5);
@@ -33,11 +35,13 @@ test('ações de percepção exigem autenticação', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.PreditorPerception && document.querySelector('.fcu-perception-button'));
   await page.evaluate(() => {
-    window.__PREDITOR_APP__.selectedSample = {
+    const selected = {
       id: 'CELULA_TESTE_LOGIN', lat: -23.55, lng: -46.63, proba: 0.82,
       ranking_candidato: 1, scope: 'area_conc_urb_sao_paulo', res_m: 50
     };
-    document.querySelector('.fcu-perception-button').click();
+    window.PreditorApp.currentSample = selected;
+    window.PreditorApp.selectedSample = selected;
+    window.PreditorPerception.openForCell();
   });
   await page.locator('[data-confirm]').click();
   await expect(page.locator('#fcu-auth-backdrop')).toHaveClass(/is-open/);

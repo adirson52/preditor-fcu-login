@@ -1247,6 +1247,7 @@ window.addEventListener('unhandledrejection', function(event) {
     <link rel="stylesheet" href="feedback.css?v=2026-09-14.1">
     <link rel="stylesheet" href="auth.css?v=2026-09-17.5">
     <link rel="stylesheet" href="perception.css?v=2026-09-17.14">
+    <link rel="stylesheet" href="mobile.css?v=2026-09-19.1">
 </head>
 
 <body>
@@ -4738,6 +4739,7 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 
   function lockTouchInteractionPanels() {
+    if (document.body.classList.contains('fcu-mobile-simple')) return;
     if (!isGatedViewport() || document.body.classList.contains('map-expanded')) return;
     document.querySelectorAll('.interaction-lockable').forEach(panel => {
       delete panel.dataset.touchUnlocked;
@@ -4774,7 +4776,7 @@ window.addEventListener('unhandledrejection', function(event) {
     const mapPanel = document.querySelector('.local-map-panel');
     if (mapPanel) {
       ensureInteractionGate(mapPanel, 'map');
-      const lockMap = gated && !mapPanel.dataset.touchUnlocked && !document.body.classList.contains('map-expanded');
+      const lockMap = gated && !mapPanel.dataset.touchUnlocked && !document.body.classList.contains('map-expanded') && !document.body.classList.contains('fcu-mobile-simple');
       mapPanel.classList.toggle('is-interaction-locked', lockMap);
       setMapGestureEnabled(!lockMap);
     }
@@ -7288,9 +7290,10 @@ window.addEventListener('unhandledrejection', function(event) {
 <script src="feedback.js?v=2026-09-14.1" defer></script>
 <script src="telemetry.js?v=2026-09-10.7" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js" defer></script>
-<script src="auth.js?v=2026-09-19.1" defer></script>
+<script src="auth.js?v=2026-09-19.2" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js" defer></script>
-<script src="perception.js?v=2026-09-19.1" defer></script>
+<script src="perception.js?v=2026-09-19.2" defer></script>
+<script src="mobile.js?v=2026-09-19.1" defer></script>
 </body>
 
 </html>

@@ -21,6 +21,9 @@
   let currentUser = null;
   let pendingPoint = null;
   let pendingOpen = null;
+  let accountCheck = null;
+  let invalidatingAccount = false;
+  let userUiRevision = 0;
 
   function safeStorageGet(key) {
     try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
@@ -260,11 +263,46 @@
   }
 
   function updateUserUi(user) {
+    userUiRevision++;
     currentUser = user || null;
     window.PreditorAuth.user = currentUser;
     ui.button.textContent = currentUser ? 'Minha conta' : 'Entrar';
     document.getElementById('fcu-account-email').textContent = currentUser ? currentUser.email : '';
   }
+
+  // The database enforces this check independently through restrictive RLS.
+  // A network failure is NOT a logout and must never discard local drafts.
+  async function verifyAccount(user) {
+    const candidate = user || currentUser;
+    if (!candidate || invalidatingAccount) return false;
+    if (window.navigator && window.navigator.onLine === false) return null;
+    if (accountCheck && accountCheck.userId === candidate.id) return accountCheck.promise;
+    const task = (async function () {
+      try {
+        const result = await client.rpc('fcu_my_account_status');
+        if (result.error || !result.data || typeof result.data.session_valid !== 'boolean') return null;
+        // An old response cannot sign out a different account opened in the meantime.
+        if (currentUser && currentUser.id !== candidate.id) return false;
+        if (result.data.session_valid === true) return true;
+        invalidatingAccount = true;
+        const reason = result.data.account_status === 'deleted'
+          ? 'Sua conta está na lixeira. A equipe pode restaurá-la; suas percepções foram preservadas.'
+          : result.data.account_status === 'suspended'
+            ? 'Seu acesso foi suspenso pela equipe. Seus desenhos e histórico foram preservados.'
+            : 'Esta sessão foi encerrada. Entre novamente para continuar; os rascunhos locais foram preservados.';
+        updateUserUi(null);
+        try { await client.auth.signOut({ scope: 'local' }); } catch (_) {}
+        openModal('login');
+        setMessage(reason, true);
+        return false;
+      } catch (_) { return null; }
+      finally { invalidatingAccount = false; }
+    })();
+    accountCheck = { userId: candidate.id, promise: task };
+    try { return await task; }
+    finally { if (accountCheck && accountCheck.promise === task) accountCheck = null; }
+  }
+  window.PreditorAuth.verifyAccount = verifyAccount;
 
   async function validatedUser() {
     try {
@@ -415,10 +453,17 @@
       return setMessage('Não foi possível entrar: ' + msg, true);
     }
     updateUserUi(result.data.user);
+    const access = await verifyAccount(result.data.user);
+    if (access === false) return;
+    if (access !== true) return setMessage('Sua senha foi aceita, mas não foi possível confirmar o acesso agora. Confira a conexão e tente novamente; seus dados locais foram preservados.', true);
+    if (result.data.user.user_metadata?.must_change_password === true) {
+      return openModal('new-password', 'Defina sua nova senha pessoal para continuar.');
+    }
     setMessage('Acesso confirmado.');
-    await trackEvent('login');
-    await resumePendingPoint();
     closeModal();
+    // Telemetry must not leave a successful login trapped behind the modal.
+    trackEvent('login').catch(function () {});
+    await resumePendingPoint();
   });
 
   document.getElementById('fcu-register-form').addEventListener('submit', async function (event) {
@@ -462,6 +507,9 @@
       const autoLogin = await client.auth.signInWithPassword({ email, password });
       if (!autoLogin.error && autoLogin.data && autoLogin.data.session) {
         updateUserUi(autoLogin.data.user);
+        const access = await verifyAccount(autoLogin.data.user);
+        if (access === false) return;
+        if (access !== true) throw new Error('Acesso ainda não confirmado.');
         form.reset();
         await resumePendingPoint();
         closeModal();
@@ -566,7 +614,7 @@
 
   document.getElementById('fcu-logout-button').addEventListener('click', async function () {
     await trackEvent('logout');
-    await client.auth.signOut();
+    await client.auth.signOut({ scope: 'local' });
     updateUserUi(null);
     setView('login');
     setMessage('Sessão encerrada.');
@@ -574,13 +622,14 @@
 
   client.auth.onAuthStateChange(function (event, session) {
     window.setTimeout(async function () {
-      const user = session && session.user ? session.user : await validatedUser();
+      const user = event === 'SIGNED_OUT' ? null : session && session.user ? session.user : await validatedUser();
       updateUserUi(user);
+      if (user && await verifyAccount(user) !== true) return;
       if (user && user.user_metadata && user.user_metadata.must_change_password === true) {
         const banner = document.getElementById('fcu-must-change-banner');
         if (banner) banner.hidden = false;
         openModal('new-password', '🔒 Sua senha é provisória ou de primeiro acesso. Defina sua nova senha pessoal.');
-      } else if (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1') {
+      } else if (user && (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1')) {
         const banner = document.getElementById('fcu-must-change-banner');
         if (banner) banner.hidden = true;
         openModal('new-password', 'Crie uma nova senha para sua conta.');
@@ -590,7 +639,16 @@
     }, 0);
   });
 
-  validatedUser().then(updateUserUi);
+  const initialUiRevision = userUiRevision;
+  validatedUser().then(async function (user) {
+    if (userUiRevision !== initialUiRevision) return;
+    updateUserUi(user);
+    if (user) await verifyAccount(user);
+  });
+  window.addEventListener('online', function () { if (currentUser) verifyAccount(); });
+  window.addEventListener('focus', function () { if (currentUser) verifyAccount(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && currentUser) verifyAccount(); });
+  window.setInterval(function () { if (!document.hidden && currentUser) verifyAccount(); }, 45000);
   window.PreditorAuth.guardCellOpen = guardCellOpen;
   const requestedView = new URLSearchParams(location.search).get('auth');
   if (requestedView === 'login' || requestedView === 'register' || requestedView === 'reset' || requestedView === 'help') {
