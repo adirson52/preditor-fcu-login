@@ -6,6 +6,7 @@
   const TERMS_VERSION = 'pilot-2026-09-11';
   const DEMO_CELL_KEY = 'preditor_fcu_demo_cell_v1';
   const SESSION_KEY = 'preditor_fcu_auth_session_v1';
+  const MASTER_API = 'https://preditor-fcu-master.vercel.app/api';
 
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
     console.error('Supabase client não foi carregado.');
@@ -60,7 +61,7 @@
           <label class="fcu-auth-field">E-mail
             <input name="email" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Senha (mínimo 6 dígitos)
+          <label class="fcu-auth-field fcu-auth-password">Senha (mínimo 6 caracteres)
             <input name="password" type="password" autocomplete="current-password" minlength="6" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
@@ -78,7 +79,7 @@
           <label class="fcu-auth-field">Instituição / Organização
             <input name="institution" type="text" autocomplete="organization" minlength="2" maxlength="200" placeholder="Ex.: IBGE, Prefeitura, Universidade, Autônomo..." required>
           </label>
-          <label class="fcu-auth-field fcu-auth-password">Crie sua senha (mínimo 6 dígitos)
+          <label class="fcu-auth-field fcu-auth-password">Crie sua senha (mínimo 6 caracteres)
             <input name="password" type="password" autocomplete="new-password" minlength="6" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
@@ -94,18 +95,26 @@
         </form>
 
         <form class="fcu-auth-view" id="fcu-reset-form" data-view="reset" hidden>
-          <label class="fcu-auth-field">E-mail cadastrado
-            <input name="email" type="email" autocomplete="email" required>
+          <p class="fcu-auth-lead">Envie um pedido à equipe para recuperar seu acesso. A redefinição será feita manualmente, após confirmar sua identidade. Não há envio automático de e-mail.</p>
+          <label class="fcu-auth-field">Seu nome
+            <input name="full_name" type="text" autocomplete="name" minlength="2" maxlength="120" required>
           </label>
-          <button class="fcu-auth-submit" type="submit">Enviar link de recuperação</button>
+          <label class="fcu-auth-field">E-mail cadastrado
+            <input name="email" type="email" autocomplete="email" maxlength="254" required>
+          </label>
+          <label class="fcu-auth-field">Telefone ou outro contato <span>(opcional)</span>
+            <input name="phone" type="text" autocomplete="tel" maxlength="120" placeholder="Um contato para a equipe falar com você">
+          </label>
+          <p class="fcu-auth-lead">Não informe sua senha. Se você já conhece a equipe, também pode procurá-la pelo canal habitual.</p>
+          <button class="fcu-auth-submit" type="submit">Pedir ajuda para recuperar acesso</button>
           <button class="fcu-auth-link" type="button" data-auth-view="login">Voltar para entrar</button>
         </form>
 
         <form class="fcu-auth-view" id="fcu-new-password-form" data-view="new-password" hidden>
           <div id="fcu-must-change-banner" class="fcu-auth-banner-must-change" hidden style="padding:10px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:12px;font-weight:700;margin-bottom:12px;">
-            🔒 Primeiro acesso ou redefinição pela equipe: crie sua nova senha pessoal de 6 dígitos ou mais para continuar.
+            🔒 Primeiro acesso ou redefinição pela equipe: crie sua nova senha pessoal de 6 caracteres ou mais para continuar.
           </div>
-          <label class="fcu-auth-field fcu-auth-password">Nova senha (mínimo 6 dígitos)
+          <label class="fcu-auth-field fcu-auth-password">Nova senha (mínimo 6 caracteres)
             <input name="password" type="password" autocomplete="new-password" minlength="6" required>
             <button type="button" data-toggle-password>Ver</button>
           </label>
@@ -120,14 +129,17 @@
           <div id="fcu-help-origin-badge" style="margin-bottom:12px;padding:6px 12px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;">
             📍 Origem: <span id="fcu-help-origin-text">Criar conta</span>
           </div>
-          <label class="fcu-auth-field">Seu E-mail ou Nome
-            <input name="sender_info" type="text" placeholder="voce@exemplo.com ou seu nome" required>
+          <label class="fcu-auth-field">Seu nome
+            <input name="full_name" type="text" autocomplete="name" minlength="2" maxlength="120" required>
+          </label>
+          <label class="fcu-auth-field">E-mail para contato
+            <input name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" required>
           </label>
           <label class="fcu-auth-field">WhatsApp ou Telefone <span>(opcional)</span>
-            <input name="phone" type="tel" placeholder="(00) 90000-0000">
+            <input name="phone" type="tel" maxlength="120" placeholder="(00) 90000-0000">
           </label>
           <label class="fcu-auth-field">Qual a dificuldade encontrada?
-            <textarea name="message_text" rows="3" placeholder="Ex.: Não consigo criar minha conta ou redefinir a senha..." required style="width:100%;box-sizing:border-box;border-radius:10px;padding:10px;border:1px solid var(--auth-line);font:inherit;background:#fff;"></textarea>
+            <textarea name="message_text" rows="3" minlength="3" maxlength="1500" placeholder="Conte o que aconteceu. Não informe sua senha." required style="width:100%;box-sizing:border-box;border-radius:10px;padding:10px;border:1px solid var(--auth-line);font:inherit;background:#fff;"></textarea>
           </label>
           <button class="fcu-auth-submit" type="submit">Enviar mensagem para a equipe</button>
           <button class="fcu-auth-link" type="button" data-auth-view="login" style="margin-top:8px;">Voltar para o login</button>
@@ -167,6 +179,42 @@
   function setBusy(form, busy) {
     const submit = form && form.querySelector('[type="submit"]');
     if (submit) submit.disabled = !!busy;
+  }
+
+  async function postMaster(path, payload) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(function () { controller.abort(); }, 20000);
+    try {
+      const response = await fetch(MASTER_API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'O serviço está indisponível. Tente novamente em alguns minutos.');
+      return data;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  async function sendAccessRequest(form, payload) {
+    // Keep the identifier across a retry: a lost response must not create two requests.
+    const signature = JSON.stringify(payload);
+    if (form.dataset.requestSignature !== signature) {
+      form.dataset.requestSignature = signature;
+      form.dataset.submissionId = crypto.randomUUID();
+    }
+    const result = await postMaster('/feedback', {
+      ...payload,
+      submission_id: form.dataset.submissionId,
+      path: location.pathname,
+      page_type: 'authentication'
+    });
+    if (result.accepted !== true) throw new Error('A equipe ainda não recebeu o pedido. Tente novamente em alguns minutos.');
+    delete form.dataset.submissionId;
+    delete form.dataset.requestSignature;
   }
 
   let lastNonHelpView = 'register';
@@ -355,15 +403,15 @@
     const password = String(values.get('password') || '');
     if (!password || password.length < 6) {
       setBusy(form, false);
-      return setMessage('A senha deve ter no mínimo 6 dígitos.', true);
+      return setMessage('A senha deve ter no mínimo 6 caracteres.', true);
     }
     const result = await client.auth.signInWithPassword({ email, password });
     setBusy(form, false);
     if (result.error) {
       let msg = result.error.message || 'Confira e-mail e senha.';
       if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
-      else if (msg.includes('Email not confirmed')) msg = 'E-mail ainda não confirmado. Verifique a caixa de entrada do seu e-mail.';
-      else if (msg.includes('Password should be at least') || msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 6 dígitos.';
+      else if (msg.includes('Email not confirmed')) msg = 'O acesso desta conta ainda não foi liberado. Use “Falar com a equipe” para pedir ajuda.';
+      else if (msg.includes('Password should be at least') || msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 6 caracteres.';
       return setMessage('Não foi possível entrar: ' + msg, true);
     }
     updateUserUi(result.data.user);
@@ -384,7 +432,13 @@
       return setMessage('Informe um e-mail válido (ex.: nome@gmail.com, @hotmail.com, @ibge.gov.br, @universidade.edu.br). Domínios inválidos não são aceitos.', true);
     }
     if (!password || password.length < 6) {
-      return setMessage('A senha deve ter no mínimo 6 dígitos ou caracteres.', true);
+      return setMessage('A senha deve ter no mínimo 6 caracteres.', true);
+    }
+
+    const termsAccepted = values.get('terms') === 'on';
+    const privacyAcknowledged = values.get('privacy') === 'on';
+    if (!termsAccepted || !privacyAcknowledged) {
+      return setMessage('Confirme os Termos de Uso e a Política de Privacidade para criar sua conta.', true);
     }
 
     setBusy(form, true);
@@ -393,78 +447,63 @@
     const institution = String(values.get('institution') || '').trim();
 
     let createdSuccess = false;
-
-    // 1. Try Master API registration first (auto-confirms user, no email sent)
     try {
-      const apiRes = await fetch('https://preditor-fcu-master.vercel.app/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, full_name: fullName, institution })
+      const apiData = await postMaster('/register', {
+        email, password, full_name: fullName, institution,
+        terms_accepted: termsAccepted,
+        privacy_acknowledged: privacyAcknowledged,
+        terms_version: TERMS_VERSION
       });
-      const apiData = await apiRes.json();
-      if (apiRes.ok && apiData.ok) {
-        createdSuccess = true;
-      } else if (apiData && apiData.error && (apiData.error.includes('já está cadastrado') || apiData.error.includes('already registered'))) {
-        setBusy(form, false);
-        return setMessage('Este e-mail já está cadastrado. Você pode entrar com sua senha ou recuperá-la.', true);
+      if (apiData.ok !== true) {
+        throw new Error('Não recebemos a confirmação do cadastro. Tente entrar ou fale com a equipe.');
       }
-    } catch (_) {}
+      createdSuccess = true;
 
-    // 2. Fallback to Supabase Auth signUp if Master API is offline
-    if (!createdSuccess) {
-      const result = await client.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          emailRedirectTo: location.origin + location.pathname,
-          data: {
-            registration_context: 'fcu_pilot',
-            full_name: fullName,
-            institution: institution,
-            terms_version: TERMS_VERSION,
-            terms_accepted: values.get('terms') === 'on',
-            privacy_acknowledged: values.get('privacy') === 'on'
-          }
-        }
-      });
-      if (result.error && !String(result.error.message).includes('confirmation email')) {
-        setBusy(form, false);
-        let errMsg = String(result.error.message || '');
-        if (errMsg.includes('Password should be at least 6 characters') || errMsg.includes('at least 6 characters')) {
-          errMsg = 'A senha deve ter no mínimo 6 dígitos ou caracteres.';
-        } else if (errMsg.includes('already registered') || errMsg.includes('duplicate')) {
-          errMsg = 'Este e-mail já está cadastrado. Você pode entrar com sua senha ou recuperá-la.';
-        }
-        return setMessage('Não foi possível concluir o cadastro: ' + errMsg, true);
+      const autoLogin = await client.auth.signInWithPassword({ email, password });
+      if (!autoLogin.error && autoLogin.data && autoLogin.data.session) {
+        updateUserUi(autoLogin.data.user);
+        form.reset();
+        await resumePendingPoint();
+        closeModal();
+      } else {
+        form.reset();
+        setView('login');
+        document.getElementById('fcu-login-form').querySelector('[name="email"]').value = email;
+        setMessage('Sua conta foi criada, mas não conseguimos entrar automaticamente. Tente entrar com sua senha; se precisar, fale com a equipe.', true);
       }
-    }
-
-    // 3. Auto-login immediately
-    const autoLogin = await client.auth.signInWithPassword({ email, password });
-    setBusy(form, false);
-    if (autoLogin.data && autoLogin.data.session) {
-      updateUserUi(autoLogin.data.user);
-      setMessage('✓ Conta criada e acesso liberado!');
-      await resumePendingPoint();
-      closeModal();
-    } else {
-      form.reset();
-      setMessage('✓ Cadastro concluído com sucesso! Você já pode entrar com seu e-mail e senha.');
-      setView('login');
+    } catch (error) {
+      const detail = error.name === 'AbortError' || error instanceof TypeError || error instanceof SyntaxError
+        ? 'Não recebemos uma resposta do serviço. Tente entrar ou fale com a equipe antes de cadastrar novamente.'
+        : error.message;
+      setMessage(createdSuccess
+        ? 'Sua conta foi criada, mas o acesso automático falhou. Entre com sua senha ou fale com a equipe.'
+        : 'Não foi possível confirmar o cadastro: ' + detail, true);
+    } finally {
+      setBusy(form, false);
     }
   });
 
   document.getElementById('fcu-reset-form').addEventListener('submit', async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
-    const email = String(new FormData(form).get('email') || '').trim();
+    const values = new FormData(form);
+    const email = String(values.get('email') || '').trim();
+    const name = String(values.get('full_name') || '').trim();
+    const phone = String(values.get('phone') || '').trim();
+    if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return setMessage('Informe seu nome e o e-mail usado no cadastro.', true);
+    }
     setBusy(form, true);
-    const result = await client.auth.resetPasswordForEmail(email, {
-      redirectTo: location.origin + location.pathname + '?recovery=1'
-    });
-    setBusy(form, false);
-    if (result.error) return setMessage('Não foi possível enviar o link agora. Tente novamente em alguns minutos.', true);
-    setMessage('Se houver uma conta cadastrada, você receberá o link para criar uma nova senha.');
+    setMessage('Enviando pedido para a equipe...');
+    try {
+      await sendAccessRequest(form, { source: 'password_recovery', name, email, phone });
+      form.reset();
+      setMessage('Pedido recebido pela equipe. A recuperação é manual e exige confirmar sua identidade. Aguarde contato ou procure a equipe pelo canal habitual. Sua senha ainda não foi alterada.');
+    } catch (_) {
+      setMessage('Não foi possível enviar seu pedido. Os dados foram mantidos; tente novamente em alguns minutos ou procure a equipe pelo canal habitual.', true);
+    } finally {
+      setBusy(form, false);
+    }
   });
 
   document.getElementById('fcu-new-password-form').addEventListener('submit', async function (event) {
@@ -472,7 +511,7 @@
     const form = event.currentTarget;
     const password = String(new FormData(form).get('password') || '');
     if (!password || password.length < 6) {
-      return setMessage('A nova senha deve ter no mínimo 6 dígitos.', true);
+      return setMessage('A nova senha deve ter no mínimo 6 caracteres.', true);
     }
     setBusy(form, true);
     const result = await client.auth.updateUser({
@@ -483,7 +522,7 @@
     if (result.error) {
       let errMsg = result.error.message || '';
       if (errMsg.includes('Password should be at least') || errMsg.includes('at least 6 characters')) {
-        errMsg = 'A senha deve ter no mínimo 6 dígitos.';
+        errMsg = 'A senha deve ter no mínimo 6 caracteres.';
       }
       return setMessage('Não foi possível salvar a nova senha: ' + errMsg, true);
     }
@@ -498,28 +537,29 @@
       event.preventDefault();
       const form = event.currentTarget;
       const values = new FormData(form);
-      const sender = String(values.get('sender_info') || '').trim();
+      const name = String(values.get('full_name') || '').trim();
+      const email = String(values.get('email') || '').trim();
       const phone = String(values.get('phone') || '').trim();
       const msg = String(values.get('message_text') || '').trim();
       const originName = viewOriginLabels[lastNonHelpView] || 'Navegação no Mapa';
 
-      if (!sender || !msg) return setMessage('Preencha seu e-mail/nome e a mensagem.', true);
+      if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || msg.length < 3) {
+        return setMessage('Preencha seu nome, e-mail e a mensagem.', true);
+      }
 
       setBusy(form, true);
       setMessage('Enviando solicitação para a equipe...');
       try {
-        await client.from('fcu_user_messages').insert({
-          message_type: 'access_help',
-          subject: `[Origem: ${originName}] Dificuldade: ${sender.slice(0, 40)}`,
-          content: `[Origem: ${originName}]\nRemetente: ${sender}\nTelefone/WhatsApp: ${phone || 'Não informado'}\nMensagem: ${msg}`,
-          metadata: { origin_page: originName, sender_info: sender, phone: phone, path: location.pathname }
+        await sendAccessRequest(form, {
+          source: 'access_help', name, email, phone,
+          message: msg, origin_page: originName
         });
-        setBusy(form, false);
         form.reset();
-        setMessage('✓ Mensagem enviada para a equipe! Analisaremos sua solicitação em breve.', false);
-      } catch (err) {
+        setMessage('Mensagem recebida pela equipe. Aguarde contato ou procure a equipe pelo canal habitual.', false);
+      } catch (_) {
+        setMessage('Não foi possível enviar sua mensagem. Os dados foram mantidos; tente novamente em alguns minutos.', true);
+      } finally {
         setBusy(form, false);
-        setMessage('✓ Mensagem recebida! A equipe analisará seu caso.', false);
       }
     });
   }

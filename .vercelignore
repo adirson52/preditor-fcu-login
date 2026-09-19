@@ -10,3 +10,14 @@ analise_modelos.html
 _check_*.png
 predeploy_*.png
 validation_*.png
+node_modules/
+tests/
+test-results/
+playwright-report/
+playwright.config.*
+before_*.png
+after_*.png
+auth-home.png
+auth-register.png
+README.md
+OPERACAO.md

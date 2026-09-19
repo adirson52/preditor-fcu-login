@@ -23,12 +23,12 @@
 
   const CLASS_KEYS = ['atencao_prioritaria', 'atencao', 'demais_areas', 'outro'];
   const LAB_MODE = false;
-  const LOCAL_STORAGE_KEY = 'preditor_fcu_local_perceptions_v3';
-  try {
-    localStorage.removeItem('preditor_fcu_local_perceptions_v1');
-    localStorage.removeItem('preditor_fcu_local_perceptions_v2');
-    localStorage.removeItem('fcu_perceptions_v1');
-  } catch (_) {}
+  const LOCAL_STORAGE_KEY = 'preditor_fcu_local_perceptions_v4:';
+  const LEGACY_STORAGE_KEYS = ['preditor_fcu_local_perceptions_v3', 'preditor_fcu_local_perceptions_v2', 'preditor_fcu_local_perceptions_v1', 'fcu_perceptions_v1'];
+  // Keep old caches intact: only records with an explicit matching owner migrate.
+  let accountEpoch = 0, loadedOwner = null, loadSequence = 0, authOwner;
+  const syncingItems = new Map();
+  const syncingOwners = new Set();
 
   let map = null, db = null, drawing = false, dragging = false, geometryEditing = false, gridMode = false;
   let points = [], originalPoints = [], selectedVertex = -1, draft = null, editingId = null, editingRecord = null;
@@ -122,113 +122,225 @@
     window.addEventListener('touchend', onPointerUp);
   }
 
-  // LOCAL FIRST STORAGE HELPERS
-  function getLocalItems() {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (_) { return []; }
+  // The database owns authorization and online history. This cache keeps each
+  // participant's offline work until a returned server row acknowledges it.
+  function ownerId() { return authOwner !== undefined ? authOwner : user() && user().id || null; }
+  function owns(record, id = ownerId()) { return !!(id && record && record.user_id === id); }
+  function sameAccount(id, epoch) { return ownerId() === id && accountEpoch === epoch; }
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function cacheKey(id) { return LOCAL_STORAGE_KEY + id; }
+  function getLocalItems(id = ownerId()) {
+    if (!id) return [];
+    const raw = localStorage.getItem(cacheKey(id));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.items)) throw new Error('Invalid perception cache');
+      return parsed.items.filter(x => owns(x, id));
+    }
+    const migrated = new Map();
+    for (const key of LEGACY_STORAGE_KEYS) {
+      const legacy = localStorage.getItem(key);
+      if (!legacy) continue;
+      let list;
+      try { list = JSON.parse(legacy); } catch (_) { continue; }
+      if (!Array.isArray(list)) continue;
+      list.filter(x => owns(x, id) && x.id).forEach(x => {
+        if (migrated.has(x.id)) return;
+        // Earlier versions could label a zero-row update as synced. Verify it.
+        const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.id);
+        migrated.set(x.id, { ...x, id: validId ? x.id : generateUUID(), ...(validId ? {} : { _legacy_id: x.id }), _sync_status: 'pending', _legacy_import: true });
+      });
+    }
+    const list = Array.from(migrated.values());
+    setLocalItems(list, id);
+    return list;
   }
-  function setLocalItems(list) {
-    try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list)); } catch (_) {}
+  function setLocalItems(list, id = ownerId()) {
+    if (!id || list.some(x => !owns(x, id))) throw new Error('Perception owner mismatch');
+    localStorage.setItem(cacheKey(id), JSON.stringify({ schema: 4, items: list }));
   }
-  function saveLocalItem(item) {
-    const list = getLocalItems();
+  function saveLocalItem(item, id = ownerId()) {
+    if (!owns(item, id)) throw new Error('Perception owner mismatch');
+    const list = getLocalItems(id);
     const idx = list.findIndex(x => x.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.unshift(item);
-    setLocalItems(list);
+    setLocalItems(list, id);
     return list;
   }
-  let isSyncing = false;
-  async function syncPendingItems() {
-    const c = client(), u = user();
-    if (isSyncing || !c || !u) return;
-    const local = getLocalItems().filter(x => x.user_id === u.id && x._sync_status === 'pending');
-    if (!local.length) return;
-    isSyncing = true;
-    for (const item of local) {
-      await syncSingleItemToSupabase(item);
-    }
-    isSyncing = false;
-  }
-  async function syncSingleItemToSupabase(item) {
-    const c = client(), u = user();
-    if (!c || !u) return false;
-    try {
-      const payload = {
-        id: item.id,
-        user_id: u.id,
-        title: item.title || `Percepção #${item.id.slice(0, 6)}`,
-        target_kind: item.target_kind || 'polygon',
-        action_type: item.action_type || 'free',
-        perceived_class: item.perceived_class || 'atencao_prioritaria',
-        perception_types: [item.perceived_class || 'atencao_prioritaria'],
-        area_id: item.area_id || null,
-        cell_id: item.cell_id || null,
-        model_class: item.model_class || null,
-        model_snapshot: item.model_snapshot || {},
-        geometry_source: item.geometry_source || 'user_polygon',
-        geometry: item.geometry,
-        description: item.description || null,
-        status: item.status || 'submitted',
-        created_at: item.created_at || new Date().toISOString()
-      };
-      if (item.intensity !== undefined) payload.intensity = item.intensity;
-      if (item.confidence) payload.confidence = item.confidence;
-      if (item.time_reference) payload.time_reference = item.time_reference;
-      if (item.field_validation !== undefined) payload.field_validation = item.field_validation;
-      if (item.field_visit_date) payload.field_visit_date = item.field_visit_date;
-
-      let r = await c.from('fcu_perceptions').upsert(payload, { onConflict: 'id' });
-      if (r.error) {
-        r = await c.from('fcu_perceptions').update(payload).eq('id', payload.id);
-      }
-      if (r.error) {
-        console.warn('Tentando payload essencial sem colunas estendidas:', r.error);
-        const minimal = {
-          id: item.id,
-          user_id: u.id,
-          title: item.title || `Percepção #${item.id.slice(0, 6)}`,
-          action_type: item.action_type || 'free',
-          perceived_class: item.perceived_class || 'atencao_prioritaria',
-          area_id: item.area_id || null,
-          cell_id: item.cell_id || null,
-          model_class: item.model_class || null,
-          model_snapshot: item.model_snapshot || {},
-          geometry: item.geometry,
-          description: item.description || null,
-          status: item.status || 'submitted',
-          created_at: item.created_at || new Date().toISOString()
-        };
-        r = await c.from('fcu_perceptions').upsert(minimal, { onConflict: 'id' });
-        if (r.error) {
-          r = await c.from('fcu_perceptions').update(minimal).eq('id', minimal.id);
-        }
-        if (r.error) {
-          r = await c.from('fcu_perceptions').insert(minimal);
-        }
-      }
-      if (!r.error || (r.error && (r.error.code === '23505' || String(r.error.message || '').includes('duplicate')))) {
-        item._sync_status = 'synced';
-        saveLocalItem(item);
-        const target = items.find(x => x.id === item.id);
-        if (target) target._sync_status = 'synced';
-        renderLayers();
-        updateListBadges();
-        return true;
-      } else {
-        console.warn('Supabase sync error:', r.error);
-        return false;
-      }
-    } catch (err) {
-      console.warn('Background sync queued for later:', err);
+  function persistDraft(item) {
+    try { saveLocalItem(item); return true; }
+    catch (_) {
+      status('Não foi possível salvar neste navegador. Libere espaço ou permita o armazenamento. O desenho continua aberto; não feche a página.', true, '#fcu-form-status');
+      status('Armazenamento indisponível. O desenho ainda não foi salvo; não feche a página.', true);
       return false;
     }
   }
+  function perceptionPayload(item) {
+    return {
+      id: item.id, user_id: item.user_id,
+      title: item.title || `Percepção #${item.id.slice(0, 6)}`,
+      target_kind: item.target_kind || 'polygon', action_type: item.action_type || 'free',
+      perceived_class: item.perceived_class || 'atencao_prioritaria',
+      perception_types: item.perception_types || [item.perceived_class || 'atencao_prioritaria'],
+      area_id: item.area_id || null, cell_id: item.cell_id || null,
+      model_class: item.model_class || null, model_probability: item.model_probability ?? null,
+      model_snapshot: item.model_snapshot || {}, geometry_source: item.geometry_source || 'user_polygon',
+      geometry: item.geometry, intensity: item.intensity ?? 3,
+      confidence: item.confidence || 'media', time_reference: item.time_reference || 'atual',
+      knowledge_sources: item.knowledge_sources || ['nao_informado'],
+      field_validation: !!item.field_validation, field_visit_date: item.field_visit_date || null,
+      description: item.description || '', status: item.status || 'submitted', created_at: item.created_at
+    };
+  }
+  function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(k => [k, stable(value[k])]));
+    return value;
+  }
+  function samePayload(a, b) {
+    const left = perceptionPayload(a), right = perceptionPayload(b);
+    // PostgreSQL may return the same timestamp with different timezone syntax.
+    delete left.created_at; delete right.created_at;
+    return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+  }
+  function pendingOperations(item) {
+    return item._pending_versions && item._pending_versions.length ? item._pending_versions :
+      [{ revision: item._local_revision || 'legacy', payload: perceptionPayload(item) }];
+  }
+  function markPending(item, previous) {
+    // The editor's snapshot supplies the optimistic concurrency baseline, but
+    // the current persistent cache owns the queue (another tab may have saved).
+    const cached = getLocalItems(item.user_id).find(x => x.id === item.id);
+    const latest = cached || previous;
+    const queued = latest && latest._sync_status !== 'synced' ? pendingOperations(latest) : [];
+    const editorRevisionIsCurrent = latest && previous && latest._local_revision === previous._local_revision && samePayload(latest, previous);
+    const editorRevisionStillQueued = previous && previous._local_revision && queued.some(op => op.revision === previous._local_revision);
+    const baseline = editorRevisionIsCurrent || editorRevisionStillQueued ? latest : previous;
+    item._local_revision = generateUUID();
+    item._pending_versions = clone(queued).concat([{ revision: item._local_revision, payload: perceptionPayload(item) }]);
+    item._server_updated_at = baseline && baseline._server_updated_at || null;
+    item._server_version_count = latest && latest._server_version_count || 0;
+    item.version_count = Math.max((latest && latest.version_count || 0) + 1, item._server_version_count + item._pending_versions.length);
+    item._history = mergeHistory(latest && latest._history || [], item._history || []);
+    item._sync_status = latest && latest._sync_status === 'conflict' || previous && previous._sync_status === 'conflict' ? 'conflict' : 'pending';
+    if (latest && latest._conflict) item._conflict = latest._conflict;
+    return item;
+  }
+  function mergeHistory(...lists) {
+    const history = new Map();
+    lists.flat().filter(Boolean).forEach(h => {
+      // Equivalent numbered snapshots can be seen first locally and then in
+      // the server history. Different geometries at the same version stay.
+      const contentFields = ['title', 'perceived_class', 'perception_types', 'geometry', 'description', 'status', 'intensity', 'confidence',
+        'time_reference', 'knowledge_sources', 'field_validation', 'field_visit_date', 'model_probability', 'model_snapshot', 'cell_id', 'action_type', 'geometry_source'];
+      const matching = h.version == null ? null : Array.from(history.entries()).find(([, existing]) =>
+        existing.version === h.version && contentFields.every(field => {
+          if (existing[field] === undefined || h[field] === undefined) return true;
+          const left = field === 'description' ? existing[field] || '' : existing[field];
+          const right = field === 'description' ? h[field] || '' : h[field];
+          return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+        }));
+      const key = matching ? matching[0] : JSON.stringify(stable(h));
+      const existing = history.get(key);
+      if (!existing) history.set(key, h);
+      else if (h._source === 'server') history.set(key, { ...existing, ...h });
+      else history.set(key, { ...h, ...existing });
+    });
+    return Array.from(history.values()).sort((a, b) => new Date(a.updated_at || a.recorded_at || 0) - new Date(b.updated_at || b.recorded_at || 0));
+  }
+  function refreshCachedUI(id) {
+    if (ownerId() !== id) return;
+    items = getLocalItems(id);
+    renderLayers();
+    renderItemsUI();
+  }
+  function markConflict(item, server, id) {
+    const current = getLocalItems(id).find(x => x.id === item.id);
+    if (!current) return;
+    saveLocalItem({ ...current, _sync_status: 'conflict', _conflict: server || null }, id);
+    refreshCachedUI(id);
+  }
+  async function syncPendingItems() {
+    const id = ownerId(), epoch = accountEpoch;
+    if (!client() || !id || syncingOwners.has(id)) return;
+    syncingOwners.add(id);
+    try {
+      for (const item of getLocalItems(id).filter(x => x._sync_status === 'pending')) {
+        if (!sameAccount(id, epoch)) break;
+        await syncSingleItemToSupabase(item);
+      }
+    } catch (_) { status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true); }
+    finally { syncingOwners.delete(id); }
+  }
+  async function syncSingleItemToSupabase(item) {
+    const id = ownerId(), epoch = accountEpoch, c = client();
+    if (!c || !owns(item, id) || item._sync_status === 'conflict') return false;
+    const lock = id + ':' + item.id;
+    if (syncingItems.has(lock)) return syncingItems.get(lock);
+    const work = (async () => {
+      try {
+        let current = getLocalItems(id).find(x => x.id === item.id);
+        if (!current) return false;
+        // A fixed batch permits new local edits during an in-flight request.
+        const operations = clone(pendingOperations(current));
+        for (const op of operations) {
+          if (!sameAccount(id, epoch)) return false;
+          current = getLocalItems(id).find(x => x.id === item.id);
+          if (!current || current._sync_status === 'conflict') return false;
+          if (!pendingOperations(current).some(x => x.revision === op.revision)) continue;
+          const read = await c.from('fcu_perceptions').select('*').eq('id', item.id).eq('user_id', id).maybeSingle();
+          if (!sameAccount(id, epoch) || read.error) return false;
+          let server = read.data;
+          if (server && !owns(server, id)) return false;
+          if (server && samePayload(server, op.payload)) {
+            // Handles a response lost after a successful commit, without duplicates.
+          } else {
+            if ((server && (!current._server_updated_at || server.updated_at !== current._server_updated_at)) ||
+                (!server && current._server_updated_at)) {
+              markConflict(current, server, id);
+              return false;
+            }
+            let write = server ? c.from('fcu_perceptions').update(op.payload).eq('id', item.id).eq('user_id', id).eq('updated_at', current._server_updated_at) :
+              c.from('fcu_perceptions').insert(op.payload);
+            const result = await write.select('*');
+            if (!sameAccount(id, epoch)) return false;
+            if (result.error || !Array.isArray(result.data) || result.data.length !== 1) {
+              if (!result.error || result.error.code === '23505') {
+                const latest = await c.from('fcu_perceptions').select('*').eq('id', item.id).eq('user_id', id).maybeSingle();
+                if (!sameAccount(id, epoch) || latest.error) return false;
+                if (latest.data && owns(latest.data, id) && samePayload(latest.data, op.payload)) server = latest.data;
+                else { markConflict(current, latest.data, id); return false; }
+              } else return false;
+            } else server = result.data[0];
+          }
+          if (!server || server.id !== item.id || !owns(server, id) || !server.updated_at || !samePayload(server, op.payload)) return false;
+          current = getLocalItems(id).find(x => x.id === item.id);
+          if (!current) return false;
+          const remaining = pendingOperations(current).filter(x => x.revision !== op.revision);
+          const acknowledged = {
+            ...(remaining.length ? current : { ...current, ...server }),
+            _server_updated_at: server.updated_at, _pending_versions: remaining,
+            _sync_status: remaining.length ? 'pending' : 'synced', _conflict: null,
+            _server_version_count: (current._server_version_count || 0) + 1
+          };
+          saveLocalItem(acknowledged, id);
+        }
+        if (!sameAccount(id, epoch)) return false;
+        refreshCachedUI(id);
+        return getLocalItems(id).find(x => x.id === item.id)?._sync_status === 'synced';
+      } catch (_) {
+        // Never downgrade payloads or acknowledge failed / zero-row writes.
+        return false;
+      }
+    })();
+    syncingItems.set(lock, work);
+    try { return await work; }
+    finally { syncingItems.delete(lock); }
+  }
 
   function updateListBadges() {
-    items.forEach(r => {
+    items.filter(r => owns(r)).forEach(r => {
       const cardEl = document.querySelector(`article[data-id="${CSS.escape(r.id)}"]`);
       if (cardEl) {
         const badge = cardEl.querySelector('.fcu-sync-badge');
@@ -248,10 +360,14 @@
                 updateListBadges();
               }
             };
-          } else {
+          } else if (r._sync_status === 'synced') {
             badge.className = 'fcu-sync-badge is-synced';
             badge.title = 'Sincronizado com o servidor';
             badge.textContent = '✓ Sincronizado';
+            badge.onclick = null;
+          } else {
+            badge.className = 'fcu-sync-badge is-local';
+            badge.textContent = r._sync_status === 'conflict' ? 'Versões diferentes · revisar' : 'No dispositivo';
             badge.onclick = null;
           }
         }
@@ -328,7 +444,13 @@
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       try { return window.crypto.randomUUID(); } catch (_) {}
     }
-    return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
   }
 
   function classOf(s){let k=null;try{const fn=window.PreditorModel&&window.PreditorModel.samplePriorityKey;if(typeof fn==='function')k=fn(s);}catch(_){ }return {priority:'atencao_prioritaria',attention:'atencao',other:'demais_areas'}[k]||null;}
@@ -360,7 +482,7 @@
   function buildMapModeControls(){if($('.fcu-map-mode-control'))return;const box=document.createElement('div');box.className='fcu-map-mode-control';box.innerHTML='<div><button type="button" data-base="street" class="is-active">Ruas</button><button type="button" data-base="satellite">Satélite</button></div><div><button type="button" data-view="2d" class="is-active">2D</button><button type="button" data-view="3d">3D</button></div>';document.querySelector('.local-map-panel').appendChild(box);let street=null;map.eachLayer(l=>{if(l instanceof L.TileLayer&&l!==app().satelliteLayer&&!street)street=l;});box.querySelector('[data-base="street"]').onclick=()=>{if(app().satelliteLayer&&map.hasLayer(app().satelliteLayer))map.removeLayer(app().satelliteLayer);if(street&&!map.hasLayer(street))street.addTo(map);box.querySelectorAll('[data-base]').forEach(b=>b.classList.toggle('is-active',b.dataset.base==='street'));};box.querySelector('[data-base="satellite"]').onclick=()=>{if(street&&map.hasLayer(street))map.removeLayer(street);if(app().satelliteLayer&&!map.hasLayer(app().satelliteLayer))app().satelliteLayer.addTo(map);box.querySelectorAll('[data-base]').forEach(b=>b.classList.toggle('is-active',b.dataset.base==='satellite'));};box.querySelector('[data-view="3d"]').onclick=()=>{const s=sample(),c=map.getCenter(),lat=Number(s&&s.lat)||c.lat,lng=Number(s&&s.lng)||c.lng;window.open(`3d.html?lat=${lat}&lng=${lng}&zoom=${Math.max(15,map.getZoom())}${s&&s.id?'&cell='+encodeURIComponent(s.id):''}`,'_blank','noopener');};}
   function drawingId(id){if(!id)return '#NOVO';const str=String(id);const part=str.includes('-')?str.split('-')[0]:str.slice(0,6);return '#'+part.toUpperCase();}
   function areaId(){const s=sample();if(s&&(s.scope||s.a))return String(s.scope||s.a);const a=$('#area-select');return a&&a.value||null;}
-  function requireLogin(){if(user())return true;close();closeProfilePanel();const b=$('#fcu-auth-button');if(b)b.click();return false;}
+  function requireLogin(){if(user() && ownerId() === user().id)return true;close();closeProfilePanel();const b=$('#fcu-auth-button');if(b)b.click();return false;}
 
   function build(){const host=document.querySelector('.local-map-panel');if(!host||$('.fcu-perception-button'))return false;if(getComputedStyle(host).position==='static')host.style.position='relative';
     host.insertAdjacentHTML('beforeend','<div class="fcu-perception-map-tools"><button class="fcu-perception-button" type="button">＋ Minha percepção</button></div>');
@@ -411,7 +533,7 @@
     document.querySelectorAll('[data-tab]').forEach(n=>n.onclick=()=>showTab(n.dataset.tab));const field=fcuFieldCheckbox();field.onchange=()=>{$('.fcu-field-date').hidden=!field.checked;if(field.checked){const source=$('[name="knowledge_source"][value="visita_campo"]');source.checked=true;}};return true;}
   
   function fcuFieldCheckbox(){return $('#fcu-perception-form [name="field_validation"]');}
-  function renderLegendControl(){const body=document.querySelector('.all-points-control .legend-body'),old=document.querySelector('.fcu-legend-perceptions');if(!body||!user()){if(old)old.remove();return;}if(old){const button=old.querySelector('button');button.classList.toggle('is-off',!filters.visible);button.setAttribute('aria-checked',String(filters.visible));return;}const group=document.createElement('div');group.className='fcu-legend-perceptions';group.innerHTML=`<div class="fcu-legend-title">Camada de percepções</div><button type="button" role="switch" aria-checked="${filters.visible}"><span class="fcu-legend-swatch"></span><span>Todas as percepções</span><i></i></button>`;group.querySelector('button').onclick=e=>{e.preventDefault();e.stopPropagation();setVisible(!filters.visible);};body.appendChild(group);}
+  function renderLegendControl(){const body=document.querySelector('.all-points-control .legend-body'),old=document.querySelector('.fcu-legend-perceptions');if(!body||!ownerId()){if(old)old.remove();return;}if(old){const button=old.querySelector('button');button.classList.toggle('is-off',!filters.visible);button.setAttribute('aria-checked',String(filters.visible));return;}const group=document.createElement('div');group.className='fcu-legend-perceptions';group.innerHTML=`<div class="fcu-legend-title">Camada de percepções</div><button type="button" role="switch" aria-checked="${filters.visible}"><span class="fcu-legend-swatch"></span><span>Minhas percepções</span><i></i></button>`;group.querySelector('button').onclick=e=>{e.preventDefault();e.stopPropagation();setVisible(!filters.visible);};body.appendChild(group);}
   function setVisible(v){filters.visible=v;const top=$('#fcu-layer-toggle');if(top)top.checked=v;document.querySelectorAll('[data-layer-visible]').forEach(n=>n.checked=v);if(v&&!map.hasLayer(layers))layers.addTo(map);if(!v&&map.hasLayer(layers))map.removeLayer(layers);renderLegendControl();}
   function renderContext(){
     const h=$('#fcu-context-card'),s=sample(),k=classOf(s);
@@ -724,15 +846,21 @@
     if(!requireLogin())return;
     status('Gerando pacote SIG para QGIS...', false);
     const u = user();
-    const localList = getLocalItems();
-    let activeData = (items.length ? items : localList);
+    const epoch = accountEpoch;
+    if (u.id !== ownerId()) return;
+    let localList;
+    try { localList = getLocalItems(); }
+    catch (_) { return status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true); }
+    let activeData = (items.length ? items : localList).filter(x => owns(x, u.id));
     if (!activeData.length) {
       const c = client();
       if (c) {
-        const r = await c.from('fcu_perceptions').select('*').order('created_at', { ascending: false });
-        if (!r.error && r.data) activeData = r.data;
+        try { activeData = await readAllOwned(c, 'fcu_perceptions', '*', u.id, epoch, 'created_at'); }
+        catch (_) { return status('Não foi possível consultar as percepções para exportar. Tente novamente.', true); }
       }
     }
+    if (!sameAccount(u.id, epoch)) return;
+    activeData = activeData.filter(x => owns(x, u.id));
     if (!activeData.length) return status('Nenhuma percepção encontrada.', true);
 
     const format = customFilters.format || $('#fcu-exp-format')?.value || 'geojson';
@@ -1010,6 +1138,7 @@
       status('Compilando GeoPackage (.gpkg) nativo para QGIS...', false);
       try {
         const gpkgBlob = await generateGeoPackageBlob(features);
+        if (!sameAccount(u.id, epoch)) return;
         const url = URL.createObjectURL(gpkgBlob);
         const a = document.createElement('a');
         a.href = url;
@@ -1038,6 +1167,7 @@
     const ext = format === 'json' ? 'json' : 'geojson';
     const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
+    if (!sameAccount(u.id, epoch)) { URL.revokeObjectURL(url); return; }
     const a = document.createElement('a');
     a.href = url;
     a.download = `percepcoes_fcu_qgis_${new Date().toISOString().slice(0, 10)}.${ext}`;
@@ -1067,10 +1197,12 @@
     const nowStr=new Date().toISOString();
 
     const existingItem = editingId ? items.find(x => x.id === editingId) : null;
+    if (editingId && !owns(existingItem)) return status('Entre novamente na conta que criou este desenho.', true, '#fcu-form-status');
     const historyList = (existingItem && Array.isArray(existingItem._history)) ? [...existingItem._history] : [];
     if (existingItem) {
       const prevVer = existingItem.version_count || (historyList.length + 1);
       historyList.push({
+        ...perceptionPayload(existingItem),
         version: prevVer,
         updated_at: existingItem.updated_at || existingItem.created_at || nowStr,
         title: existingItem.title,
@@ -1079,9 +1211,10 @@
         description: existingItem.description
       });
     }
-    const currentVersion = existingItem ? (historyList.length + 1) : 1;
+    const currentVersion = existingItem ? (existingItem.version_count || 1) + 1 : 1;
 
     const payload={
+      ...(existingItem || {}),
       id:id,
       user_id:user().id,
       title:String(v.get('title')||'').trim()||autoTitle,
@@ -1092,7 +1225,7 @@
       area_id:draft.model_snapshot&&draft.model_snapshot.area_id||areaId(),
       cell_id:draft.cell_id||null,
       model_class:draft.model_class||null,
-      model_probability:draft.model_probability||null,
+      model_probability:draft.model_probability??null,
       model_snapshot:draft.model_snapshot||{},
       geometry_source:draft.geometry_source||'user_polygon',
       geometry:draft.geometry,
@@ -1111,7 +1244,8 @@
       _sync_status:'pending'
     };
 
-    saveLocalItem(payload);
+    markPending(payload, editingRecord || existingItem);
+    if (!persistDraft(payload)) return;
 
     if(editingId){const i=items.findIndex(x=>x.id===editingId);if(i>=0)items[i]=payload;else items.unshift(payload);}
     else items.unshift(payload);
@@ -1125,48 +1259,49 @@
     status(`⏳ Sincronizando desenho ${drawingId(id)} com a nuvem...`);
 
     const synced = await syncSingleItemToSupabase(payload);
+    if (!owns(payload)) return;
     if (synced) {
       status(`✓ Desenho ${drawingId(id)} salvo e sincronizado com a nuvem!`);
+    } else if (getLocalItems().find(x => x.id === id)?._sync_status === 'conflict') {
+      status('Há uma versão diferente na nuvem. As duas foram preservadas; revise o aviso na lista.', true);
     } else {
       status(`⚡ Desenho ${drawingId(id)} salvo no dispositivo! (Toque em Sincronizar na lista para tentar novamente)`);
     }
   }
 
   async function archive(id){
+    if (!requireLogin()) return;
     if(!confirm('Remover esta percepção do mapa e enviá-la para a Lixeira?'))return;
     const targetItem = items.find(x => x.id === id);
-    if (targetItem) {
+    if (owns(targetItem)) {
+      const previous = clone(targetItem);
       targetItem.status = 'archived';
-      targetItem._sync_status = 'pending';
-      saveLocalItem(targetItem);
+      targetItem.updated_at = new Date().toISOString();
+      markPending(targetItem, previous);
+      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       renderItemsUI();
       status('⚡ Percepção movida para a Lixeira no dispositivo. Sincronizando...');
       syncSingleItemToSupabase(targetItem);
-    } else {
-      const c = client();
-      if (c) await c.from('fcu_perceptions').update({status:'archived'}).eq('id',id);
-      load();
-    }
+    } else return;
     window.PreditorTelemetry?.track('perception_archive',{perception_id:id});
   }
 
   async function restore(id){
+    if (!requireLogin()) return;
     const targetItem = items.find(x => x.id === id);
-    if (targetItem) {
+    if (owns(targetItem)) {
+      const previous = clone(targetItem);
       targetItem.status = 'submitted';
-      targetItem._sync_status = 'pending';
-      saveLocalItem(targetItem);
+      targetItem.updated_at = new Date().toISOString();
+      markPending(targetItem, previous);
+      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       showTab('active');
       renderItemsUI();
       status('⚡ Percepção restaurada no dispositivo. Sincronizando...');
       syncSingleItemToSupabase(targetItem);
-    } else {
-      const c = client();
-      if (c) await c.from('fcu_perceptions').update({status:'submitted'}).eq('id',id);
-      load();
-    }
+    } else return;
     window.PreditorTelemetry?.track('perception_restore',{perception_id:id});
   }
 
@@ -1248,10 +1383,11 @@
 
   function beginGeometryEdit(record,isNew=false){
     if(!requireLogin())return;
+    if(record && !owns(record))return;
     close();
     closeProfilePanel();
     geometryEditing=true;
-    editingRecord=record||null;
+    editingRecord=record?clone(record):null;
     editingId=record?record.id:null;
     if(record){
       draft={id:record.id,target_kind:record.target_kind||'polygon',action_type:record.action_type||'free',cell_id:record.cell_id,model_class:record.model_class,model_probability:record.model_probability,model_snapshot:record.model_snapshot||{},geometry_source:record.geometry_source||'user_polygon',geometry:record.geometry};
@@ -1312,15 +1448,19 @@
     };
     if(record)$('#fcu-editor-delete').onclick=async()=>{closeEditor();reset();open();await archive(record.id);};
     $('#fcu-editor-ok').onclick=async()=>{
+      if (!requireLogin() || (record && !owns(record)) || !draft) return;
       points=normalizePoints(points,drawingZoom);
       draft.geometry=toGeometry();
       if(isNew){closeEditor();showForm(null);return;}
       
       const recId = record.id;
       const targetItem = items.find(x => x.id === recId) || record;
+      if (!owns(targetItem)) return;
+      const previous = clone(targetItem);
       const historyList = Array.isArray(targetItem._history) ? [...targetItem._history] : [];
       const prevVer = targetItem.version_count || (historyList.length + 1);
       historyList.push({
+        ...perceptionPayload(targetItem),
         version: prevVer,
         updated_at: targetItem.updated_at || targetItem.created_at || new Date().toISOString(),
         title: targetItem.title,
@@ -1329,12 +1469,11 @@
         description: targetItem.description
       });
       targetItem._history = historyList;
-      targetItem.version_count = historyList.length + 1;
+      targetItem.version_count = (targetItem.version_count || 1) + 1;
       targetItem.geometry = draft.geometry;
       targetItem.updated_at = new Date().toISOString();
-      targetItem._sync_status = 'pending';
-
-      saveLocalItem(targetItem);
+      markPending(targetItem, editingRecord || previous);
+      if (!persistDraft(targetItem)) { Object.assign(targetItem, previous); return; }
       renderLayers();
       closeEditor();
       reset();
@@ -1377,7 +1516,7 @@
     const email = u.email || '';
     const institution = meta.institution || 'Não informada';
     const initials = (fullName.split(' ').map(n=>n[0]).slice(0,2).join('') || 'U').toUpperCase();
-    const userActiveCount = items.filter(x => x.status !== 'archived').length;
+    const userActiveCount = items.filter(x => owns(x) && x.status !== 'archived').length;
 
     container.innerHTML = `
       <!-- CARD 1: PERFIL DO PARTICIPANTE -->
@@ -1681,7 +1820,7 @@
     };
   }
 
-  function edit(r){editingId=r.id;draft={target_kind:r.target_kind||'polygon',action_type:r.action_type||'free',cell_id:r.cell_id,model_class:r.model_class,model_probability:r.model_probability,model_snapshot:r.model_snapshot||{},geometry_source:r.geometry_source||'user_polygon',geometry:r.geometry};points=toPoints(r.geometry);showForm(r.perceived_class||(r.perception_types||[])[0],r);}
+  function edit(r){if(!requireLogin()||!owns(r))return;editingId=r.id;editingRecord=clone(r);draft={target_kind:r.target_kind||'polygon',action_type:r.action_type||'free',cell_id:r.cell_id,model_class:r.model_class,model_probability:r.model_probability,model_snapshot:r.model_snapshot||{},geometry_source:r.geometry_source||'user_polygon',geometry:r.geometry};points=toPoints(r.geometry);showForm(r.perceived_class||(r.perception_types||[])[0],r);}
   function showTab(tab){
     const list = $('#fcu-perception-list');
     const history = $('#fcu-perception-history');
@@ -1732,7 +1871,7 @@
     }
     layers.clearLayers();
     layerById.clear();
-    items.filter(r=>r.status!=='archived').forEach(r=>{
+    items.filter(r=>owns(r)&&r.status!=='archived').forEach(r=>{
       const k=r.perceived_class||(r.perception_types||[])[0]||'outro';
       if(!filters.classes.has(k)||!filters.actions.has(r.action_type||'free'))return;
       const pts=toPoints(r.geometry);
@@ -1777,11 +1916,12 @@
       ? '<span class="fcu-author-badge is-mine" style="background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:4px;">Sua percepção</span>'
       : '<span class="fcu-author-badge is-other" style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:4px;">Participante / Master</span>';
 
-    const syncBadge = r._sync_status === 'pending'
-      ? '<span class="fcu-sync-badge is-local" title="Salvo no dispositivo (sincronizando...)">⚡ No dispositivo</span>'
-      : '<span class="fcu-sync-badge is-synced" title="Sincronizado com o servidor">✓ Sincronizado</span>';
+    const syncBadge = r._sync_status === 'synced'
+      ? '<span class="fcu-sync-badge is-synced" title="Gravação confirmada pelo servidor">✓ Sincronizado</span>'
+      : `<span class="fcu-sync-badge is-local">${r._sync_status === 'conflict' ? 'Versões diferentes · revisar' : '⚡ No dispositivo'}</span>`;
+    const conflictHtml = r._sync_status === 'conflict' ? '<p style="font-size:12px;color:#92400e;">Este desenho mudou em outro acesso ou sua gravação anterior não pôde ser confirmada. Sua versão está preservada aqui.</p><button type="button" data-conflict-copy>Preservar minha versão como cópia</button>' : '';
 
-    const versionCount = Math.max(count || 1, r.version_count || 1, (r._history ? r._history.length + 1 : 1));
+    const versionCount = Math.max(count || 1, r.version_count || 1);
     const versionText = `${versionCount} ${versionCount === 1 ? 'versão' : 'versões'}`;
     const dateStr = new Date(r.created_at).toLocaleDateString('pt-BR');
 
@@ -1800,7 +1940,9 @@
       `;
     }
 
-    c.innerHTML=`<span class="fcu-card-id">Desenho ${drawingId(r.id)} ${authorBadge} ${syncBadge}</span><div class="fcu-item-top"><i style="--fcu-color:${COLOR[k]}"></i><div><strong>${esc(r.title)}</strong><small>${ACTION[r.action_type||'free']} · ${LABEL[k]}</small></div></div><small>${dateStr} · <strong style="color:#07324d;">${versionText}</strong></small>${versionHistoryHtml}<div class="fcu-perception-item-actions"><button data-view>Ver no mapa</button>${archived?'<button data-restore>Restaurar</button>':'<button data-shape>Editar área</button><button data-edit>Editar dados</button><button data-archive>Excluir</button>'}</div>`;
+    c.innerHTML=`<span class="fcu-card-id">Desenho ${drawingId(r.id)} ${authorBadge} ${syncBadge}</span><div class="fcu-item-top"><i style="--fcu-color:${COLOR[k]}"></i><div><strong>${esc(r.title)}</strong><small>${ACTION[r.action_type||'free']} · ${LABEL[k]}</small></div></div><small>${dateStr} · <strong style="color:#07324d;">${versionText}</strong></small>${versionHistoryHtml}${conflictHtml}<div class="fcu-perception-item-actions"><button data-view>Ver no mapa</button>${archived?'<button data-restore>Restaurar</button>':'<button data-shape>Editar área</button><button data-edit>Editar dados</button><button data-archive>Excluir</button>'}</div>`;
+    const conflictButton = c.querySelector('[data-conflict-copy]');
+    if (conflictButton) conflictButton.onclick = () => preserveConflictCopy(r.id);
     const badgeEl = c.querySelector('.fcu-sync-badge');
     if (badgeEl && r._sync_status === 'pending') {
       badgeEl.className = 'fcu-sync-badge is-local fcu-sync-clickable';
@@ -1817,7 +1959,7 @@
         }
       };
     }
-    c.querySelector('[data-view]').onclick=()=>{const temp=L.polygon(toPoints(r.geometry),style(r));close();const l=layerById.get(r.id)||temp.addTo(map);map.fitBounds(l.getBounds(),{padding:[30,30]});if(!layerById.has(r.id))setTimeout(()=>map.hasLayer(temp)&&map.removeLayer(temp),8000);};
+    c.querySelector('[data-view]').onclick=()=>{if(!owns(r))return;const temp=L.polygon(toPoints(r.geometry),style(r));close();const l=layerById.get(r.id)||temp.addTo(map);map.fitBounds(l.getBounds(),{padding:[30,30]});if(!layerById.has(r.id))setTimeout(()=>map.hasLayer(temp)&&map.removeLayer(temp),8000);};
     if(archived)c.querySelector('[data-restore]').onclick=()=>restore(r.id);
     else{c.querySelector('[data-shape]').onclick=()=>beginGeometryEdit(r);c.querySelector('[data-edit]').onclick=()=>edit(r);c.querySelector('[data-archive]').onclick=()=>archive(r.id);}
     return c;
@@ -1828,8 +1970,8 @@
     const history = $('#fcu-perception-history');
     if (!list || !history) return;
 
-    const active = items.filter(x => x.status !== 'archived');
-    const trash = items.filter(x => x.status === 'archived');
+    const active = items.filter(x => owns(x) && x.status !== 'archived');
+    const trash = items.filter(x => owns(x) && x.status === 'archived');
 
     list.innerHTML = active.length ? '' : '<p>Nenhuma percepção registrada no momento.</p>';
     history.innerHTML = trash.length ? '' : '<p>A lixeira está vazia.</p>';
@@ -1838,10 +1980,66 @@
     trash.forEach(x => history.appendChild(card(x, counts[x.id] || 1)));
   }
 
+  async function preserveConflictCopy(recordId) {
+    const id = ownerId(), epoch = accountEpoch, c = client();
+    if (!id || !c) return;
+    try {
+      const row = await c.from('fcu_perceptions').select('*').eq('id', recordId).eq('user_id', id).maybeSingle();
+      if (!sameAccount(id, epoch) || row.error) return status('Não foi possível consultar a versão online. Tente novamente; sua versão continua salva.', true);
+      const list = getLocalItems(id), original = list.find(x => x.id === recordId);
+      if (!original || original._sync_status !== 'conflict' || (row.data && !owns(row.data, id))) return;
+      const copyTitle = value => String(value || 'Percepção').slice(0, 100) + ' (cópia preservada)';
+      const copy = { ...clone(original), id: generateUUID(), title: copyTitle(original.title),
+        _conflict: null, _sync_status: 'pending', _server_updated_at: null, _server_version_count: 0, _local_revision: generateUUID(),
+        created_at: new Date().toISOString(), _conflict_origin_id: recordId };
+      copy._pending_versions = pendingOperations(original).map(op => ({ revision: generateUUID(), payload: {
+        ...op.payload, id: copy.id, title: copyTitle(op.payload.title), created_at: copy.created_at
+      } }));
+      copy.version_count = copy._pending_versions.length;
+      const replacement = row.data ? { ...row.data, _server_updated_at: row.data.updated_at, _sync_status: 'synced', _history: original._history || [] } :
+        { ...original, status: 'archived', _sync_status: 'local_only', _conflict: null };
+      setLocalItems([copy, ...list.map(x => x.id === recordId ? replacement : x)], id);
+      refreshCachedUI(id);
+      status('As versões foram preservadas separadamente. Sincronizando a cópia...');
+      await syncSingleItemToSupabase(copy);
+    } catch (_) { status('Não foi possível preservar a cópia agora. O desenho original continua salvo neste dispositivo.', true); }
+  }
+
+  async function readAllOwned(c, table, fields, id, epoch, orderBy) {
+    const rows = [], pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+      if (!sameAccount(id, epoch)) throw new Error('Account changed');
+      const result = await c.from(table).select(fields).eq('user_id', id).order(orderBy, { ascending: false }).order('id', { ascending: false }).range(offset, offset + pageSize - 1);
+      if (result.error || !Array.isArray(result.data)) throw new Error('Read unavailable');
+      if (!sameAccount(id, epoch)) throw new Error('Account changed');
+      rows.push(...result.data.filter(x => owns(x, id)));
+      if (result.data.length < pageSize) return rows;
+    }
+  }
+
+  function resetForAccount(id) {
+    if (loadedOwner === id) return;
+    loadedOwner = id;
+    accountEpoch++;
+    items = [];
+    layers.clearLayers();
+    layerById.clear();
+    // A saved draft remains in its owner's cache; unfinished forms must never
+    // become another participant's new perception after switching accounts.
+    if (map) { closeEditor(); reset(); }
+    closeProfilePanel();
+    const profile = $('#fcu-account-content');
+    if (profile) profile.innerHTML = '';
+    renderItemsUI();
+  }
+
   async function load(){
     const list=$('#fcu-perception-list'),history=$('#fcu-perception-history');
     if(!list)return;
-    if(!user()){
+    const uId = ownerId();
+    resetForAccount(uId);
+    const epoch = accountEpoch, sequence = ++loadSequence;
+    if(!uId){
       items=[];
       renderLayers();
       list.innerHTML='<p>Entre para consultar as percepções.</p>';
@@ -1849,40 +2047,56 @@
       return;
     }
 
-    const uId = user().id;
-    const localList = getLocalItems();
-    items = localList;
-    renderLayers();
-    renderItemsUI();
-
     try {
+      items = getLocalItems(uId);
+      const requestedLocal = new Map(items.map(x => [x.id, x]));
+      renderLayers();
+      renderItemsUI();
       const c = client();
       if (c) {
-        const r = await c.from('fcu_perceptions').select('*').order('created_at', { ascending: false });
-        if (!r.error && Array.isArray(r.data)) {
-          const vr = await c.from('fcu_perception_versions').select('perception_id,version');
+        const serverRows = await readAllOwned(c, 'fcu_perceptions', '*', uId, epoch, 'created_at');
+        if (sameAccount(uId, epoch) && sequence === loadSequence) {
+          let versions = [];
+          try {
+            versions = await readAllOwned(c, 'fcu_perception_versions', 'id,user_id,perception_id,version,title,perceived_class,perception_types,geometry,description,recorded_at,status,intensity,confidence,time_reference,knowledge_sources,field_validation,field_visit_date,model_snapshot,action_type,cell_id', uId, epoch, 'version');
+          } catch (_) { /* Existing local history is kept if history fetch fails. */ }
+          if (!sameAccount(uId, epoch) || sequence !== loadSequence) return;
           const counts = {};
-          (vr.data || []).forEach(v => counts[v.perception_id] = Math.max(counts[v.perception_id] || 0, v.version));
-
-          const localMap = new Map(localList.map(x => [x.id, x]));
-
-          r.data.forEach(serverItem => {
+          versions.forEach(v => counts[v.perception_id] = Math.max(counts[v.perception_id] || 0, v.version));
+          const histories = new Map();
+          versions.forEach(v => {
+            if (v.version === counts[v.perception_id]) return;
+            if (!histories.has(v.perception_id)) histories.set(v.perception_id, []);
+            histories.get(v.perception_id).push({ ...v, _source: 'server', updated_at: v.recorded_at });
+          });
+          // Re-read after awaits: a local save may have happened during loading.
+          const localMap = new Map(getLocalItems(uId).map(x => [x.id, x]));
+          serverRows.forEach(serverItem => {
             const existing = localMap.get(serverItem.id);
-            if (!existing || existing._sync_status !== 'pending') {
-              localMap.set(serverItem.id, { ...serverItem, _sync_status: 'synced' });
+            const serverCount = counts[serverItem.id] || existing?._server_version_count || 1;
+            const queuedCount = existing && existing._sync_status !== 'synced' ? pendingOperations(existing).length : 0;
+            const metadata = { _history: mergeHistory(existing?._history || [], histories.get(serverItem.id) || []),
+              _server_version_count: serverCount, version_count: serverCount + queuedCount };
+            const responseIsOlder = existing && Date.parse(existing._server_updated_at) > Date.parse(serverItem.updated_at);
+            if (existing && (existing._sync_status !== 'synced' || responseIsOlder)) {
+              localMap.set(serverItem.id, { ...existing, ...metadata });
+            } else localMap.set(serverItem.id, { ...existing, ...serverItem, ...metadata, _server_updated_at: serverItem.updated_at, _sync_status: 'synced' });
+          });
+          const serverIds = new Set(serverRows.map(x => x.id));
+          localMap.forEach((x, id) => {
+            const beforeRead = requestedLocal.get(id);
+            if (!serverIds.has(id) && x._sync_status === 'synced' && beforeRead?._sync_status === 'synced' && x._server_updated_at === beforeRead._server_updated_at) {
+              localMap.set(id, { ...x, _sync_status: 'conflict', _conflict: null });
             }
           });
-
           const mergedList = Array.from(localMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          setLocalItems(mergedList, uId);
           items = mergedList;
-          setLocalItems(items);
           renderLayers();
           renderItemsUI(counts);
         }
       }
-    } catch (err) {
-      console.warn('Sync load warning:', err);
-    }
+    } catch (_) { if (sameAccount(uId, epoch)) status('Não foi possível atualizar a nuvem agora. Os desenhos locais foram preservados.', true); }
     
     syncPendingItems();
   }
@@ -1904,14 +2118,20 @@
     });
     const c = client();
     if (c && c.auth) {
-      c.auth.onAuthStateChange(()=>setTimeout(()=>{load();renderLegendControl();syncPendingItems();},0));
+      c.auth.onAuthStateChange((_event, session)=>{
+        authOwner = session && session.user && session.user.id || null;
+        resetForAccount(authOwner);
+        setTimeout(()=>{load();renderLegendControl();syncPendingItems();},0);
+      });
     }
     load();
     syncPendingItems();
     
-    window.addEventListener('online', () => syncPendingItems());
-    window.addEventListener('focus', () => syncPendingItems());
+    window.addEventListener('online', () => load());
+    window.addEventListener('focus', () => load());
+    window.addEventListener('storage', event => { if (ownerId() && event.key === cacheKey(ownerId())) load(); });
     setInterval(() => syncPendingItems(), 15000);
+    setInterval(() => { if (!document.hidden && !drawing && !geometryEditing && ownerId()) load(); }, 60000);
 
     setInterval(()=>{
       const id=String((sample()||{}).id||'');
