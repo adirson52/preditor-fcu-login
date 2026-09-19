@@ -125,7 +125,7 @@ test('status mobile não confunde cópia local com confirmação online', async 
   await emit({ ownerId: 'qa', pending: 1, online: false });
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Neste aparelho');
   await emit({ ownerId: 'qa', syncing: true });
-  await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Enviando…');
+  await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Sincronizando…');
   await emit({ ownerId: 'qa', synced: 1, lastLoadedAt: Date.now(), online: true });
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Salvo online');
   await emit({ ownerId: 'qa', quarantined: 2, lastLoadedAt: Date.now(), online: true });
@@ -136,6 +136,30 @@ test('status mobile não confunde cópia local com confirmação online', async 
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Revisar versões');
   await emit({ ownerId: 'qa', synced: 1, lastLoadedAt: Date.now(), online: true, cloudAvailable: false });
   await expect(page.locator('#fcu-mobile-sync-label')).toHaveText('Conexão não confirmada');
+});
+
+test('sincronização resolvida com erro não confirma online e respeita pendências, conflitos e troca de conta', async ({ page }) => {
+  await page.setViewportSize({ width:390,height:844 });
+  await page.route('**/*.supabase.co/**', route=>route.abort());
+  await ready(page);
+  await page.evaluate(()=>{
+    window.PreditorAuth={user:{id:'fixture-sync'}};
+    window.__syncUiState={ownerId:'fixture-sync',synced:1,lastLoadedAt:Date.now(),online:true,cloudAvailable:true};
+    window.__syncUiResult={ok:false,reason:'partial-history'};
+    window.PreditorPerception.getSyncStatus=()=>window.__syncUiState;
+    window.PreditorPerception.syncNow=async()=>window.__syncUiResult;
+  });
+  const button=page.locator('#fcu-mobile-sync-button'),label=page.locator('#fcu-mobile-sync-label');
+  await button.click();await expect(label).toHaveText('Tente sincronizar');await expect(button).toHaveAttribute('title',/histórico não pôde/);
+  await page.evaluate(()=>{window.__syncUiResult={ok:false,reason:'unavailable'};});
+  await button.click();await expect(label).toHaveText('Tente sincronizar');
+  for(const [patch,expected] of [[{pending:1},'Neste aparelho'],[{pending:0,conflicts:1},'Revisar versões'],[{conflicts:0,online:false},'Sem conexão']]) {
+    await page.evaluate(patch=>Object.assign(window.__syncUiState,patch),patch);await button.click();await expect(label).toHaveText(expected);
+  }
+  await page.evaluate(()=>{Object.assign(window.__syncUiState,{online:true});window.__syncUiResult={ok:true,reason:'synced'};});
+  await button.click();await expect(label).toHaveText('Salvo online');
+  await page.evaluate(()=>{window.PreditorPerception.syncNow=async()=>{window.__syncUiState={ownerId:'second-fixture',online:true,lastLoadedAt:Date.now(),synced:0};return {ok:false,reason:'account-changed'};};});
+  await button.click();await expect(label).toHaveText('Online');
 });
 
 test('conta QA em mobile permite abrir desenho e cancelar sem gravar', async ({ page }) => {
@@ -151,6 +175,7 @@ test('conta QA em mobile permite abrir desenho e cancelar sem gravar', async ({ 
   expect(result.error).toBe(false);
   await page.waitForFunction(() => window.PreditorAuth.user && window.PreditorPerception.getSyncStatus().ownerId);
   await page.locator('[data-fcu-screen="perception"]').click();
+  await page.locator('.fcu-sheet-handle').click();
   await page.locator('#fcu-start-drawing').click();
   await expect(page.locator('.fcu-perception-drawnote')).toBeVisible();
   const map = await page.locator('#map').boundingBox();

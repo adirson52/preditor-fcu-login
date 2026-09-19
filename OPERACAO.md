@@ -33,7 +33,7 @@ Cadastro automático pelo servidor da Master, senha mínima de seis caracteres, 
 ## Interface móvel e contas — complemento de 19/09/2026
 
 - Até 1.024 px, a apresentação inicial é **Simplificado**: mapa, áreas de estudo e navegação inferior Mapa/Percepções/Conta. A escolha Simplificado/Completo fica salva neste navegador. O painel de percepções pode ser expandido ou recolhido sem encobrir todo o mapa.
-- O indicador distingue **Neste aparelho**, **Enviando**, **Salvo online**, **Sem conexão** e conflitos. Um rascunho local não é backup: não limpar dados do navegador enquanto houver pendências. O mapa-base e o primeiro carregamento continuam dependendo da internet; não é um aplicativo offline completo.
+- O indicador distingue **Neste aparelho**, **Sincronizando**, **Salvo online**, **Sem conexão** e conflitos. Um rascunho local não é backup: não limpar dados do navegador enquanto houver pendências. O mapa-base e o primeiro carregamento continuam dependendo da internet; não é um aplicativo offline completo.
 - Os dados online são compartilhados pela mesma conta. Sessões do navegador interno do WhatsApp, Chrome e atalho instalado podem ter armazenamentos separados e exigir login próprio. Não foi implementada autenticação por digital/passkey.
 - A Master administra Ativos/Suspensos/Lixeira e restaura contas. Se a conta estava suspensa antes de ir à lixeira, continua suspensa após restaurar.
 - A migração `participant_account_lifecycle` acrescenta controles e auditoria privados e políticas restritivas nas cinco tabelas dos participantes. O estado é verificado no banco, não em metadados editáveis do usuário.
@@ -69,10 +69,24 @@ A migração complementar `20260919151716_perception_identity_guard.sql` mantém
 
 Limpar o cache HTTP do Chrome/Safari não limpa necessariamente os desenhos guardados no armazenamento local. Limpar **todos os dados do site** pode encerrar a sessão e perder alterações ainda não enviadas; preferir o botão acima. Registros já reenviados ao banco não desaparecem limpando apenas o aparelho: qualquer arquivamento desses registros exige seleção e confirmação administrativa.
 
-## Painéis e menus móveis — 19/09/2026
+## Painéis e menus móveis — revisão mapa primeiro, 19/09/2026
 
-O painel Minhas percepções abre compacto (aproximadamente 32% da altura, limitado a 300 px em retrato). Arrastar a alça ajusta a altura continuamente e encaixa o painel em recolhido, compacto ou expandido; tocar na alça alterna as posições. A lista continua rolando separadamente. Tamanho e posição acompanham mudança de orientação e área visível do navegador.
+O painel Minhas percepções agora abre recolhido, com 60 px, deixando a lista oculta até uma escolha explícita. A lista abre pelo controle Lista ou arrastando a alça; o formulário abre ao concluir uma área. Arrastar ajusta a altura continuamente e encaixa o painel em recolhido, compacto ou expandido. A lista continua rolando separadamente. Tamanho e posição acompanham mudança de orientação e área visível do navegador.
 
-As barras de desenho e edição são compactas no modo Simplificado, mantêm botões de pelo menos 44 px e aceitam arraste pelo cabeçalho, sem deslocar o mapa. A posição é limitada para não esconder o menu atrás da navegação inferior. A posição de menus é apenas apresentação, não altera geometrias nem grava percepções.
+As barras de desenho e edição usam uma linha de 56 px no modo Simplificado, com Mais, Cancelar e Concluir/OK. Mais abre as opções existentes, incluindo adicionar/remover vértices e excluir. Os alvos de toque mantêm pelo menos 44 px. As barras aceitam arraste pelo cabeçalho, sem deslocar o mapa; a posição é limitada pela área útil. A posição de menus é apenas apresentação, não altera geometrias nem grava percepções. O cabeçalho ocupa 64 px e a navegação inferior 88 px, antes das áreas seguras do aparelho.
 
-Testes específicos: `tests/mobile-sheet.spec.js` e `tests/mobile-toolbar.spec.js`, usando toque emulado e dados simulados, sem contas ou escritas no banco. O V1, a Master e os fluxos de autenticação/sincronização não recebem alterações nesta correção. Continuam separados os ajustes pendentes da auditoria: sincronização manual com leitura remota, edição de geometria pequena com mapa afastado e gerenciamento das prévias temporárias.
+Testes específicos: `tests/mobile-sheet.spec.js`, `tests/mobile-toolbar.spec.js`, `tests/mobile-map-first.spec.js` e `tests/mobile-ui.spec.js`, usando toque emulado e dados simulados. O V1 não recebe estas alterações. Continuam separados os ajustes de geometria pequena com mapa afastado e gerenciamento de prévias temporárias apontados na auditoria; a correção desta etapa não os declara resolvidos.
+
+## Sincronização após login e captura na Master — revisão de 19/09/2026
+
+O botão Sincronizar aguarda um ciclo completo: envia revisões pendentes e lê percepções/histórico do servidor. O ciclo é compartilhado apenas pela mesma conta e época de login; respostas de sessões antigas não devem contaminar outra conta nem bloquear novo login. Login, foco, retorno à aba, reconexão e atualização periódica em primeiro plano usam esse ciclo. A autenticação é revalidada antes de reconciliar a leitura, pois uma resposta vazia por sessão revogada não significa que todos os registros foram removidos. Falhas, conflitos e revisões pendentes não são sucesso de sincronização.
+
+O primeiro acesso automático depois do cadastro agora registra o mesmo evento de login do formulário Entrar. O registro autenticado não depende do coletor opcional de navegação. Cadastro continua sem SMTP e sem comprovação de propriedade do endereço de e-mail.
+
+Os dois botões Sair usam a mesma operação local: registram a tentativa de saída autenticada, encerram apenas o aparelho atual e mantêm rascunhos locais. Falha do serviço de métricas não prende a pessoa na sessão; erro de encerramento é mostrado sem simular sucesso. A ação não prossegue contra uma nova conta que tenha entrado enquanto o registro estava sendo enviado.
+
+A alça móvel não cancela o arraste em eventos de redimensionamento sintéticos disparados pelo menu lateral. Mudanças reais da área útil (rotação, teclado e navegador) continuam ajustando os limites do painel.
+
+Captura não significa registro irrestrito de toda ação: a telemetria de navegação respeita as opções de privacidade e mantém a exclusão de tráfego US e bots solicitada anteriormente. Marcações administrativas de navegador/sessão como teste retiram esses acessos dos indicadores reais, mas não apagam suas jornadas. A leitura desta revisão encontrou 22 navegadores/104 sessões do LoginPercp classificados como teste, preservados sem reclassificação. Eventos autenticados e histórico das percepções são consultados separadamente.
+
+Contas sintéticas de QA exigem o prefixo `qa.mobile.`, domínio de teste permitido e instituição exata `QA técnico — não pesquisa` para ficarem fora dos indicadores/exportações normais; demos comuns não são excluídas. O domínio reservado `example.com` permite testar o mesmo cadastro público, que recusa e-mails terminados em `.test`. Relatórios com `include_technical=1` continuam protegidos pela autenticação Master. Evidências sanitizadas desta revisão ficam em `D:\preditor-maintenance-backups\2026-09-19-map-login-review`, fora do Git.

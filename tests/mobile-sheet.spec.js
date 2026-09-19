@@ -14,6 +14,9 @@ const seeds = Array.from({ length: 14 }, (_, index) => ({
 async function ready(page) {
   const diagnostics = { errors: [], unexpectedDatabase: [] };
   page.on('pageerror', error => diagnostics.errors.push(error.message));
+  page.on('requestfailed', request => {
+    if (/\.(css|js)(\?|$)/.test(request.url())) console.log('Resource failed:', request.url(), request.failure()?.errorText);
+  });
   await page.route('**/api/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
   await page.route('**/*.supabase.co/**', route => { diagnostics.unexpectedDatabase.push(route.request().method()); return route.abort(); });
   await page.route('**/auth.js*', route => route.fulfill({ contentType: 'text/javascript', body: `
@@ -44,10 +47,24 @@ async function ready(page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.PreditorMobile && window.PreditorPerception?.getSyncStatus().lastLoadedAt, null, { timeout: 60000 });
   await expect(page.locator('body')).toHaveClass(/fcu-mobile-simple/);
+  await expect(page.locator('.fcu-mobile-topbar')).toHaveCSS('position', 'fixed');
+  await page.evaluate(() => {
+    window.__sheetEvents=[];
+    for(const type of ['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture']) document.addEventListener(type,event=>{
+      if(event.target.closest?.('.fcu-sheet-handle')) window.__sheetEvents.push({type,at:performance.now(),button:event.button,primary:event.isPrimary,pointer:event.pointerId,x:event.clientX,y:event.clientY});
+    },true);
+    for(const type of ['resize','scroll']) window.visualViewport?.addEventListener(type,()=>window.__sheetEvents.push({type:'viewport-'+type,at:performance.now(),height:visualViewport.height,top:visualViewport.offsetTop}));
+    for(const type of ['resize','orientationchange']) window.addEventListener(type,()=>window.__sheetEvents.push({type:'window-'+type,at:performance.now()}));
+  });
   await page.locator('[data-fcu-screen="perception"]').tap();
   await expect(page.locator('#fcu-perception-panel')).toHaveClass(/is-open/);
-  await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet', 'half');
+  await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet', 'peek');
   await expect(page.locator('#fcu-perception-list article')).toHaveCount(seeds.length);
+  await settleSheet(page);
+  // The new default is the 60px map-first dock. Exercise its optional
+  // intermediate snap explicitly; tapping Lista now opens the full list.
+  await touchGesture(page, await handleStart(page), [-40, -120]);
+  await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet', 'half');
   await settleSheet(page);
   return diagnostics;
 }
@@ -102,7 +119,9 @@ async function touchGesture(page, start, deltas, endType = 'touchEnd', checkpoin
     }
     await session.send('Input.dispatchTouchEvent', { type:endType,touchPoints:[] });
   } finally {
+    const events=await page.evaluate(()=>window.__sheetEvents);
     await test.info().attach('touch-samples', { body:JSON.stringify({start,deltas,endType,samples},null,2),contentType:'application/json' });
+    if(checkpoint && samples.some(sample=>sample.dragging===false)) console.log('Touch diagnostics:',JSON.stringify({start,deltas,endType,samples,events}));
     await session.detach();
   }
   return samples;
@@ -167,6 +186,13 @@ for (const viewport of [{width:390,height:844},{width:768,height:1024}]) {
         expect(sample.height).toBeGreaterThan(initial.height+10+index*20);
         expect(sample.state).toBe('half');
         await mapUnmoved(page,initial);
+        if(index===0) {
+          // Closing the study-area sidebar dispatches this synthetic event on
+          // a delay. It must not cancel an unrelated, already active touch.
+          await page.evaluate(()=>window.dispatchEvent(new Event('resize')));
+          await frame(page);
+          expect((await metrics(page)).dragging).toBe(true);
+        }
       });
       await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','half');
       await expect(page.locator('#fcu-perception-panel')).not.toHaveClass(/is-dragging/);
@@ -181,7 +207,7 @@ for (const viewport of [{width:390,height:844},{width:768,height:1024}]) {
       await expect.poll(async () => (await metrics(page)).height).toBeLessThanOrEqual(70);
       await handleStart(page);
       await page.locator('.fcu-sheet-handle').tap();
-      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','half');
+      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','expanded');
       await settleSheet(page);
       await mapUnmoved(page,initial);
       await evidence(page,testInfo,'gesto-cancelado-reaberto',{initial,samples,final:await metrics(page)});
@@ -211,7 +237,7 @@ for (const viewport of [{width:390,height:844},{width:768,height:1024}]) {
       await expect.poll(async () => (await metrics(page)).scrollTop).toBe(0);
       await handleStart(page);
       await page.locator('.fcu-sheet-handle').tap();
-      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','half');
+      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','expanded');
       await settleSheet(page);
       await evidence(page,testInfo,'lista-rolada-recolhida',{before,scrollSamples,scrolled,final:await metrics(page)});
       await cleanFixture(page,diagnostics);
@@ -239,7 +265,7 @@ test.describe('painel em orientação e modo completo', () => {
       expect(expanded.top).toBeGreaterThanOrEqual(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       await page.locator('.fcu-sheet-handle').tap();
-      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','half');
+      await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','peek');
       await settleSheet(page);
       if (viewport.height>viewport.width) await expect.poll(async () => (await metrics(page)).height).toBeLessThanOrEqual(Math.min(viewport.height*.34,300)+2);
       dimensions.push({viewport,expanded,compact:await metrics(page)});
@@ -266,7 +292,7 @@ test.describe('painel em orientação e modo completo', () => {
     await page.locator('.fcu-mobile-quick-mode').tap();
     await expect(page.locator('body')).toHaveClass(/fcu-mobile-simple/);
     await page.locator('[data-fcu-screen="perception"]').tap();
-    await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','half');
+    await expect(page.locator('#fcu-perception-panel')).toHaveAttribute('data-mobile-sheet','peek');
     await evidence(page,testInfo,'volta-do-modo-completo',await metrics(page));
     await cleanFixture(page,diagnostics);
   });

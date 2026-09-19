@@ -12,11 +12,14 @@
   let preference = readPreference();
   let simple = false;
   let sheet = null;
-  let sheetState = 'half';
+  let sheetState = 'peek';
+  let previousPerceptionOpen = false;
   let sheetGesture = null;
   let sheetResizeFrame = 0;
+  let sheetViewport = '';
   let previousFormVisible = false;
   let syncError = '';
+  let syncErrorOwner = null;
 
   function readPreference() {
     try {
@@ -73,7 +76,7 @@
     const navigationHeight = $('.fcu-mobile-bottom')?.getBoundingClientRect().height || 94;
     const available = Math.max(60, top + height - navigationHeight - Math.max(top, headerBottom) - 8);
     const expanded = Math.min(available, Math.max(60, height * .70));
-    return { peek: Math.min(60, expanded), half: Math.min(expanded, Math.max(180, Math.min(300, height * .32))), expanded, inset };
+    return { peek: Math.min(60, expanded), half: Math.min(expanded, 180), expanded, inset };
   }
 
   function applySheetHeight(height, sizes = sheetSizes()) {
@@ -85,30 +88,58 @@
   function refreshSheetSize() {
     if (!sheet) return;
     finishSheetGesture(true);
+    updateSheetContents();
+    sheetViewport = sheetViewportKey();
     const sizes = sheetSizes();
     applySheetHeight(sizes[sheetState], sizes);
   }
 
+  function sheetViewportKey() {
+    const viewport = window.visualViewport;
+    return [window.innerWidth, window.innerHeight, viewport?.width, viewport?.height,
+      viewport?.offsetTop, viewport?.offsetLeft, $('.fcu-mobile-topbar')?.getBoundingClientRect().bottom,
+      $('.fcu-mobile-bottom')?.getBoundingClientRect().height].join(':');
+  }
+
   function scheduleSheetResize() {
     if (sheetResizeFrame) return;
-    sheetResizeFrame = requestAnimationFrame(() => { sheetResizeFrame = 0; refreshSheetSize(); });
+    sheetResizeFrame = requestAnimationFrame(() => {
+      sheetResizeFrame = 0;
+      // Other dashboard panels dispatch synthetic resize events after closing.
+      // Do not cancel a touch gesture unless the usable viewport really changed.
+      if (sheetViewportKey() !== sheetViewport) refreshSheetSize();
+    });
   }
 
   function setSheetState(state) {
     sheetState = state;
     if (!sheet) return;
     sheet.dataset.mobileSheet = state;
+    document.body.dataset.mobileSheet = state;
+    updateSheetContents();
     if (state === 'peek') sheet.scrollTop = 0;
+    if (simple && state !== 'peek') (window.PreditorApp || window.App)?.map?.closePopup();
     const sizes = sheetSizes();
     applySheetHeight(sizes[state], sizes);
     const handle = sheet.querySelector('.fcu-sheet-handle');
     handle.setAttribute('aria-expanded', String(state !== 'peek'));
-    handle.setAttribute('aria-label', state === 'expanded' ? 'Recolher percepções' : state === 'peek' ? 'Abrir percepções' : 'Expandir percepções');
-    handle.querySelector('.fcu-sheet-action').textContent = state === 'expanded' ? 'Recolher' : state === 'peek' ? 'Abrir' : 'Expandir';
+    const hasForm = !!$('#fcu-perception-form') && !$('#fcu-perception-form').hidden;
+    handle.setAttribute('aria-label', state === 'expanded' ? 'Recolher percepções' : hasForm ? 'Continuar percepção' : 'Ver lista de percepções');
+    handle.querySelector('.fcu-sheet-action').textContent = state === 'expanded' ? 'Recolher' : hasForm ? 'Continuar' : 'Lista';
+    sheet.querySelector('.fcu-sheet-draw').hidden = hasForm;
+  }
+
+  function updateSheetContents() {
+    if (!sheet) return;
+    // Collapsed content must not receive hidden keyboard focus. The dock
+    // remains usable, and Complete restores the original focusable content.
+    [...sheet.children].forEach(node => {
+      if (!node.classList.contains('fcu-sheet-controls')) node.inert = simple && sheetState === 'peek';
+    });
   }
 
   function toggleSheetState() {
-    setSheetState(sheetState === 'peek' || sheetState === 'expanded' ? 'half' : 'expanded');
+    setSheetState(sheetState === 'expanded' ? 'peek' : 'expanded');
   }
 
   function finishSheetGesture(cancelled, event) {
@@ -135,7 +166,7 @@
     const panel = $('#fcu-perception-panel');
     if (!panel || panel === sheet) return;
     sheet = panel;
-    sheet.insertAdjacentHTML('afterbegin', '<div class="fcu-sheet-controls"><button type="button" class="fcu-sheet-handle" aria-controls="fcu-perception-start fcu-perception-form"><i aria-hidden="true"></i><span>Minhas percepções</span><small class="fcu-sheet-action">Expandir</small></button><button type="button" class="fcu-sheet-close" aria-label="Fechar percepções">×</button></div>');
+    sheet.insertAdjacentHTML('afterbegin', '<div class="fcu-sheet-controls"><button type="button" class="fcu-sheet-handle" aria-controls="fcu-perception-start fcu-perception-form"><i aria-hidden="true"></i><span>Minhas percepções</span><small class="fcu-sheet-action">Lista</small></button><button type="button" class="fcu-sheet-draw" aria-label="Desenhar área" title="Desenhar área">✎</button><button type="button" class="fcu-sheet-close" aria-label="Fechar percepções">×</button></div>');
     const handle = sheet.querySelector('.fcu-sheet-handle');
     handle.addEventListener('pointerdown', event => {
       if (!simple || sheetGesture || event.isPrimary === false || event.button !== 0) return;
@@ -170,14 +201,17 @@
       toggleSheetState();
     });
     sheet.querySelector('.fcu-sheet-close').onclick = () => window.PreditorPerception?.close();
+    sheet.querySelector('.fcu-sheet-draw').onclick = () => $('#fcu-start-drawing')?.click();
     const filters = sheet.querySelector('.fcu-filter-box');
     if (simple && filters) filters.open = false;
-    setSheetState('half');
+    setSheetState('peek');
+    sheetViewport = sheetViewportKey();
     new MutationObserver(syncChrome).observe(panel, { attributes: true, attributeFilter: ['class'] });
     const form = $('#fcu-perception-form');
     if (form) new MutationObserver(() => {
       const visible = !form.hidden;
       if (visible && !previousFormVisible && simple) { setSheetState('expanded'); sheet.scrollTop = 0; }
+      else if (!visible && previousFormVisible && simple) setSheetState('peek');
       previousFormVisible = visible;
     }).observe(form, { attributes: true, attributeFilter: ['hidden'] });
   }
@@ -186,6 +220,10 @@
     const perceptionOpen = !!window.PreditorPerception?.isOpen();
     const accountOpen = document.body.classList.contains('fcu-account-open');
     if (!perceptionOpen) finishSheetGesture(true);
+    if (simple && perceptionOpen && !previousPerceptionOpen) {
+      setSheetState($('#fcu-perception-form')?.hidden === false ? 'expanded' : 'peek');
+    }
+    previousPerceptionOpen = perceptionOpen;
     if (sheet) sheet.inert = !perceptionOpen;
     const sidebar = $('#site-sidebar');
     if (sidebar) sidebar.inert = simple && !document.body.classList.contains('fcu-mobile-areas-open');
@@ -214,16 +252,48 @@
     }
   }
 
+  function connectToolbars() {
+    document.querySelectorAll('#fcu-perception-drawnote, #fcu-geometry-toolbar').forEach(bar => {
+      if (bar.querySelector('.fcu-mobile-tools-toggle')) return;
+      const isEditor = bar.id === 'fcu-geometry-toolbar';
+      const head = bar.firstElementChild;
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'fcu-mobile-tools-toggle';
+      const extras = isEditor ? [...bar.querySelectorAll('#fcu-add-vertex, #fcu-remove-vertex, #fcu-editor-delete')] : [...bar.querySelectorAll('.fcu-gis-group')].slice(0, 2);
+      extras.forEach((node, index) => { if (!node.id) node.id = bar.id + '-options-' + index; });
+      toggle.setAttribute('aria-controls', extras.map(node => node.id).join(' '));
+      function collapse(expanded) {
+        bar.dataset.mobileTools = expanded ? 'expanded' : 'collapsed';
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute('aria-label', expanded ? 'Recolher ferramentas' : 'Mais ferramentas de ' + (isEditor ? 'edição' : 'desenho'));
+        toggle.textContent = expanded ? 'Menos' : 'Mais';
+      }
+      head.insertAdjacentElement('afterend', toggle);
+      toggle.onclick = () => collapse(bar.dataset.mobileTools !== 'expanded');
+      bar.addEventListener('click', event => {
+        if (simple && event.target.closest('#fcu-mode-vertices, #fcu-mode-freehand')) { collapse(false); toggle.focus({ preventScroll: true }); }
+      });
+      bar.addEventListener('keydown', event => {
+        if (simple && event.key === 'Escape' && bar.dataset.mobileTools === 'expanded') {
+          event.preventDefault(); event.stopPropagation(); collapse(false); toggle.focus();
+        }
+      });
+      collapse(false);
+    });
+  }
+
   function refreshSync(event) {
     const state = event?.detail || window.PreditorPerception?.getSyncStatus?.();
     const label = $('#fcu-mobile-sync-label');
     const button = $('#fcu-mobile-sync-button');
     if (!label || !button) return;
+    if (syncErrorOwner !== state?.ownerId) syncError = '';
     let message = 'Entre para sincronizar';
     let tone = 'neutral';
     let detail = 'Entre na sua conta para salvar percepções e acessá-las em outros aparelhos.';
     if (state?.ownerId) {
-      if (state.syncing) { message = 'Enviando…'; detail = 'Aguardando a confirmação do servidor.'; }
+      if (state.syncing) { message = 'Sincronizando…'; detail = 'Enviando alterações e consultando suas percepções online.'; }
       else if (state.conflicts) { message = 'Revisar versões'; tone = 'pending'; detail = 'Há versões diferentes. Abra Percepções para escolher sem perder seu trabalho.'; }
       else if (state.pending || state.localOnly) { message = 'Neste aparelho'; tone = 'pending'; detail = 'Há alterações ainda não confirmadas online. Não limpe os dados do navegador nem saia da conta antes de sincronizar.'; }
       else if (state.online === false) { message = 'Sem conexão'; tone = 'pending'; detail = 'Os mapas podem precisar de internet. Alterações locais serão enviadas quando a conexão voltar.'; }
@@ -234,7 +304,7 @@
       else { message = 'Online'; tone = 'success'; detail = 'Conectado. Você ainda não tem percepções neste aparelho.'; }
     }
     if (state?.ownerId && state.storageAvailable === false) { message = 'Armazenamento indisponível'; tone = 'pending'; detail = 'Este navegador não permite guardar alterações com segurança. Não feche a página; habilite o armazenamento ou use outro navegador antes de desenhar.'; }
-    if (syncError && !state?.syncing) { message = 'Tente sincronizar'; tone = 'pending'; detail = syncError; }
+    if (syncError && !state?.syncing && !state?.pending && !state?.localOnly && !state?.conflicts && state?.online !== false && state?.storageAvailable !== false) { message = 'Tente sincronizar'; tone = 'pending'; detail = syncError; }
     if (label.textContent !== message) label.textContent = message;
     $('#fcu-mobile-sync').dataset.tone = tone;
     button.title = detail;
@@ -273,7 +343,7 @@
       if (button.dataset.fcuScreen === 'map') { perception?.close(); perception?.closeProfile(); resizeMap(); }
       if (button.dataset.fcuScreen === 'perception') {
         if (!window.PreditorAuth?.user) $('#fcu-auth-button')?.click();
-        else { setSheetState('half'); perception?.open(); }
+        else { setSheetState('peek'); perception?.open(); }
       }
       if (button.dataset.fcuScreen === 'account') { perception?.close(); $('#fcu-auth-button')?.click(); }
       syncChrome();
@@ -281,7 +351,14 @@
     $('#fcu-mobile-sync-button').onclick = async () => {
       if (!window.PreditorAuth?.user) { $('#fcu-auth-button')?.click(); return; }
       syncError = '';
-      try { await window.PreditorPerception?.syncNow(); }
+      syncErrorOwner = window.PreditorPerception?.getSyncStatus?.().ownerId;
+      try {
+        const result = await window.PreditorPerception?.syncNow();
+        if (result?.ok === false && !['conflicts', 'pending', 'busy', 'account-changed'].includes(result.reason)) {
+          syncError = result.reason === 'partial-history' ? 'Percepções atualizadas, mas o histórico não pôde ser conferido. Tente novamente.' :
+            'Não foi possível concluir a sincronização. Suas alterações locais continuam preservadas; verifique sua conexão e tente novamente.';
+        }
+      }
       catch (_) { syncError = 'Não foi possível confirmar o envio. Suas alterações locais continuam preservadas; verifique sua conexão e tente novamente.'; }
       refreshSync();
     };
@@ -295,8 +372,10 @@
     window.visualViewport?.addEventListener('scroll', scheduleSheetResize);
     compactViewport.addEventListener('change', () => { if (!preference) chooseMode(compactViewport.matches ? 'simple' : 'complete', false); });
     new MutationObserver(syncChrome).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(connectToolbars).observe(document.body, { childList: true });
     chooseMode(preference || (compactViewport.matches ? 'simple' : 'complete'), false);
     connectSheet();
+    connectToolbars();
     refreshSync();
     window.setInterval(() => { connectSheet(); syncChrome(); refreshSync(); }, 1500);
     window.PreditorMobile = { setMode: mode => { if (mode === 'simple' || mode === 'complete') chooseMode(mode, true); }, getMode: () => simple ? 'simple' : 'complete' };

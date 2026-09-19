@@ -24,6 +24,7 @@
   let accountCheck = null;
   let invalidatingAccount = false;
   let userUiRevision = 0;
+  let accountIdentityRevision = 0;
 
   function safeStorageGet(key) {
     try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
@@ -263,6 +264,7 @@
   }
 
   function updateUserUi(user) {
+    if ((currentUser && currentUser.id || null) !== (user && user.id || null)) accountIdentityRevision++;
     userUiRevision++;
     currentUser = user || null;
     window.PreditorAuth.user = currentUser;
@@ -312,8 +314,10 @@
   }
 
   async function trackEvent(eventName, point) {
-    if (!currentUser) return;
-    window.PreditorTelemetry?.track('auth_' + eventName, {}, {cellId: point?.id, area: point?.a || point?.scope});
+    if (!currentUser) return false;
+    const owner = currentUser.id;
+    // Optional page analytics must not prevent the authenticated activity record.
+    try { window.PreditorTelemetry?.track('auth_' + eventName, {}, {cellId: point?.id, area: point?.a || point?.scope}); } catch (_) {}
     const areaId = point && (point.a || point.scope) ? String(point.a || point.scope) : null;
     const cellId = point && point.id ? String(point.id) : null;
     let sessionId = safeStorageGet(SESSION_KEY);
@@ -322,16 +326,48 @@
       safeStorageSet(SESSION_KEY, sessionId);
     }
     try {
-      await client.from('fcu_authenticated_events').insert({
-        user_id: currentUser.id,
+      const result = await client.from('fcu_authenticated_events').insert({
+        user_id: owner,
         event_name: eventName,
         session_id: sessionId || null,
         area_id: areaId,
         cell_id: cellId,
         event_data: { page: location.pathname || '/' }
       });
-    } catch (_) {}
+      return !result.error;
+    } catch (_) { return false; }
   }
+
+  async function signOutLocal() {
+    const owner = currentUser && currentUser.id, revision = accountIdentityRevision;
+    if (!owner) return { ok: true, reason: 'already-signed-out' };
+    let timer;
+    try {
+      // Give the authenticated logout record a chance to arrive before its
+      // session ends. Unavailable analytics must never trap someone logged in.
+      await Promise.race([
+        trackEvent('logout').catch(function () { return false; }),
+        new Promise(resolve => { timer = window.setTimeout(() => resolve(false), 3000); })
+      ]);
+    } finally { window.clearTimeout(timer); }
+    if (!currentUser || currentUser.id !== owner || accountIdentityRevision !== revision) {
+      return { ok: false, reason: 'account-changed' };
+    }
+    let result;
+    try { result = await client.auth.signOut({ scope: 'local' }); }
+    catch (_) { result = { error: true }; }
+    // SIGNED_OUT may already have cleared the UI. Never clear a new login
+    // that appeared while the old session was being closed.
+    if (currentUser && (currentUser.id !== owner || accountIdentityRevision !== revision)) {
+      return { ok: false, reason: 'account-changed' };
+    }
+    if (result && result.error) return { ok: false, reason: 'signout-failed', message: 'Não foi possível sair agora. Sua sessão foi mantida; tente novamente.' };
+    updateUserUi(null);
+    setView('login');
+    setMessage('Sessão encerrada neste dispositivo.');
+    return { ok: true, reason: 'signed-out' };
+  }
+  window.PreditorAuth.signOutLocal = signOutLocal;
 
   function showDemoNotice() {
     if (document.getElementById('fcu-auth-demo-note')) return;
@@ -511,8 +547,10 @@
         if (access === false) return;
         if (access !== true) throw new Error('Acesso ainda não confirmado.');
         form.reset();
-        await resumePendingPoint();
         closeModal();
+        // First access after signup is a real login, just like the login form.
+        trackEvent('login').catch(function () {});
+        await resumePendingPoint();
       } else {
         form.reset();
         setView('login');
@@ -613,11 +651,12 @@
   }
 
   document.getElementById('fcu-logout-button').addEventListener('click', async function () {
-    await trackEvent('logout');
-    await client.auth.signOut({ scope: 'local' });
-    updateUserUi(null);
-    setView('login');
-    setMessage('Sessão encerrada.');
+    const button = document.getElementById('fcu-logout-button');
+    button.disabled = true;
+    try {
+      const result = await signOutLocal();
+      if (!result.ok && result.reason !== 'account-changed') setMessage(result.message, true);
+    } finally { button.disabled = false; }
   });
 
   client.auth.onAuthStateChange(function (event, session) {

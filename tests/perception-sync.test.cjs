@@ -24,7 +24,7 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
   const storage = new Map(), server = new Map(rows.map(x => [x.id, copy(x)])), calls = [], writes = [];
   if (legacy) storage.set(OLD_KEY, JSON.stringify(legacy));
   let seq = 0, interceptor = null;
-  const state = { quota: false };
+  const state = { quota: false, online: true };
   const storageAPI = {
     getItem: k => storage.has(k) ? storage.get(k) : null,
     setItem: (k, v) => { if (state.quota) throw new Error('QuotaExceeded'); storage.set(k, v); },
@@ -64,6 +64,7 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
   const window = { PreditorAuth: { user: { id: USER_A, user_metadata: {} }, client: mockClient }, crypto: webcrypto };
   const list = { innerHTML: '', appendChild() {} };
   const context = vm.createContext({ window, localStorage: storageAPI, console, Uint8Array, Map, Set, Date, URL,
+    navigator: { get onLine() { return state.online; } },
     setInterval() {}, clearInterval() {}, setTimeout, CSS: { escape: x => x },
     L: { layerGroup: () => ({ clearLayers() {} }) },
     document: { querySelector: s => /#fcu-perception-(list|history)$/.test(s) ? list : null },
@@ -73,8 +74,9 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
   assert.ok(start > 0);
   vm.runInContext(source.slice(0, start) + `
     renderLayers = () => {}; renderItemsUI = () => {}; closeProfilePanel = () => {}; status = () => {};
+    renderLegendControl = () => {};
     globalThis.api = { getLocalItems, setLocalItems, saveLocalItem, markPending, syncSingleItemToSupabase,
-      syncPendingItems, mergeHistory, load, preserveConflictCopy, perceptionPayload, resetForAccount,
+      syncPendingItems, syncNow, handleAuthChange, mergeHistory, load, preserveConflictCopy, perceptionPayload, resetForAccount,
       readAllOwned, ownerId, generateUUID, getSyncStatus, getQuarantinedItems, recoverQuarantinedCopy, refreshDeviceCache, stageDraft,
       visible: () => items, queue: (item, previous) => { markPending(item, previous); saveLocalItem(item); return item; },
       setOwner: id => { authOwner = id; window.PreditorAuth.user = id ? { id, user_metadata: {} } : null; resetForAccount(id); }
@@ -82,7 +84,9 @@ function harness({ rows = [], legacy, versions = [] } = {}) {
   })();`, context);
   const api = context.api;
   api.resetForAccount(USER_A);
-  return { api, storage, server, calls, writes, state, intercept: fn => { interceptor = fn; }, verifyWith: fn => { window.PreditorAuth.verifyAccount = fn; } };
+  return { api, storage, server, calls, writes, state, intercept: fn => { interceptor = fn; }, verifyWith: fn => { window.PreditorAuth.verifyAccount = fn; },
+    authEvent: (event, id) => { const user = id ? { id, user_metadata: {} } : null; window.PreditorAuth.user = user; return api.handleAuthChange(event, user ? { user } : null); }
+  };
 }
 
 test('legacy caches migrate only explicit owner records and remain untouched', () => {
@@ -669,4 +673,259 @@ test('stale acknowledgement cannot turn a concurrently archived snapshot into pe
   assert.equal(current._pending_versions.length, 0);
   assert.equal(h.api.getQuarantinedItems().length, 1);
   assert.equal(h.writes.length, 0);
+});
+
+test('manual sync with no pending items pulls edits and archive from another device', async () => {
+  const h = harness({ rows: [baselineRow()] });
+  await h.api.load({ sync: false });
+  h.server.set(ID, perception({ title: 'Outro aparelho', status: 'archived', updated_at: '2026-09-19T13:00:00Z' }));
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, 'synchronized');
+  assert.equal(h.api.getLocalItems()[0].status, 'archived');
+  assert.equal(h.api.getLocalItems()[0].title, 'Outro aparelho');
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.api.getSyncStatus().syncing, false);
+});
+
+test('manual sync shares concurrent callers and awaits both existing upload and full pull', async () => {
+  const h = harness(), row = h.api.queue(perception());
+  let releaseWrite, releaseRead, reachedWrite, reachedRead;
+  const atWrite = new Promise(resolve => { reachedWrite = resolve; });
+  const atRead = new Promise(resolve => { reachedRead = resolve; });
+  h.intercept((q, execute) => {
+    if (q.operation === 'insert') { reachedWrite(); return new Promise(resolve => { releaseWrite = () => resolve(execute()); }); }
+    if (q.table === 'fcu_perceptions' && q.range) { reachedRead(); return new Promise(resolve => { releaseRead = () => resolve(execute()); }); }
+    return execute();
+  });
+  const upload = h.api.syncSingleItemToSupabase(row); await atWrite;
+  let completed = false;
+  const cycle = h.api.syncNow(); cycle.then(() => { completed = true; });
+  assert.equal(h.api.syncNow(), cycle);
+  await Promise.resolve();
+  assert.equal(completed, false);
+  assert.equal(h.api.getSyncStatus().syncing, true);
+  releaseWrite(); await upload; await atRead;
+  assert.equal(completed, false, 'Upload acknowledgement alone does not complete manual sync.');
+  releaseRead();
+  assert.equal((await cycle).ok, true);
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.calls.filter(q => q.table === 'fcu_perceptions' && q.range).length, 1);
+  assert.equal(h.api.getSyncStatus().checking, false);
+  assert.equal(h.api.getSyncStatus().syncing, false);
+});
+
+test('offline manual sync preserves pending revisions, then reconnect pushes and pulls', async () => {
+  const h = harness(); h.api.queue(perception());
+  const key = 'preditor_fcu_local_perceptions_v4:' + USER_A, before = h.storage.get(key);
+  h.state.online = false;
+  assert.equal((await h.api.syncNow()).ok, false);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.storage.get(key), before);
+  assert.equal(h.api.getSyncStatus().pending, 1);
+  h.state.online = true;
+  assert.equal((await h.api.syncNow()).ok, true);
+  const insertIndex = h.calls.findIndex(q => q.operation === 'insert');
+  const pullIndex = h.calls.findIndex(q => q.table === 'fcu_perceptions' && q.range);
+  assert(insertIndex >= 0 && pullIndex > insertIndex);
+  assert.equal(h.api.getSyncStatus().pending, 0);
+});
+
+test('failed upload followed by successful empty pull does not acknowledge or discard a new draft', async () => {
+  const h = harness(); h.api.queue(perception());
+  h.intercept((q, execute) => q.operation === 'insert' ? { data: null, error: { code: 'NETWORK' } } : execute());
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'pending');
+  const cached = h.api.getLocalItems()[0];
+  assert.equal(cached._sync_status, 'pending');
+  assert.equal(cached._pending_versions.length, 1);
+  assert.deepEqual(copy(cached.geometry), perception().geometry);
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('zero-row RLS update during full manual cycle remains a conflict and reports no success', async () => {
+  const old = baselineRow(), h = harness({ rows: [old] });
+  h.api.queue(perception({ title: 'Minha revisão' }), old);
+  h.intercept((q, execute) => q.operation === 'update' ? { data: [], error: null } : execute());
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'conflicts');
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'conflict');
+  assert.equal(h.api.getLocalItems()[0]._pending_versions.length, 1);
+  assert.equal(h.server.get(ID).title, old.title);
+  assert.equal(h.writes.length, 0);
+});
+
+test('failed cloud pull after acknowledged upload reports unavailable but retains its acknowledgement', async () => {
+  const h = harness(); h.api.queue(perception());
+  h.intercept((q, execute) => q.table === 'fcu_perceptions' && q.range ? { data: null, error: { code: 'NETWORK' } } : execute());
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unavailable');
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'synced');
+  assert.equal(h.api.getSyncStatus().cloudAvailable, false);
+  assert.equal(h.api.getSyncStatus().lastLoadedAt, null);
+  assert.equal(h.writes.length, 1);
+});
+
+test('manual sync cannot treat unverified empty RLS state as deletion', async () => {
+  for (const allowed of [null, false]) {
+    const h = harness(); h.api.saveLocalItem(baselineRow());
+    const key = 'preditor_fcu_local_perceptions_v4:' + USER_A, before = h.storage.get(key);
+    h.verifyWith(async () => allowed);
+    assert.equal((await h.api.syncNow()).ok, false);
+    assert.equal(h.storage.get(key), before);
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.api.getQuarantinedItems().length, 0);
+  }
+});
+
+test('session revoked during an empty read preserves cache before destructive reconciliation', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow());
+  const key = 'preditor_fcu_local_perceptions_v4:' + USER_A, before = h.storage.get(key);
+  let valid = true;
+  h.verifyWith(async () => valid);
+  h.intercept((q, execute) => { const result = execute(); if (q.range) valid = false; return result; });
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(h.storage.get(key), before);
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.api.getSyncStatus().lastLoadedAt, null);
+});
+
+test('manual sync preserves quarantined records and local revisions of remotely deleted rows', async () => {
+  const h = harness({ legacy: [perception({ id: '22222222-2222-4222-8222-222222222222' })] });
+  h.api.getLocalItems();
+  h.api.queue(perception({ title: 'Revisão offline da área removida' }), baselineRow());
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, true, 'The current cloud snapshot was read, with recoverable records separately counted.');
+  assert.equal(result.quarantined, 2);
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.api.getLocalItems().find(row => row.id === ID)._pending_versions.length, 1);
+  assert.equal(h.writes.length, 0);
+});
+
+test('owner change aborts a full cycle without publishing old owner rows or using new credentials for its queue', async () => {
+  const h = harness(); h.api.queue(perception());
+  h.intercept((q, execute) => { const result = execute(); h.api.setOwner(USER_B); return result; });
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'account-changed');
+  assert.equal(h.api.getLocalItems(USER_A)[0]._sync_status, 'pending');
+  assert.equal(h.api.getLocalItems(USER_B).length, 0);
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('logout and same-owner re-login do not inherit an old in-flight item lock or stale acknowledgement', async () => {
+  const h = harness(); h.api.queue(perception());
+  let release, reached, first = true;
+  const atRead = new Promise(resolve => { reached = resolve; });
+  h.intercept((q, execute) => {
+    if (first && q.single) {
+      first = false; const stale = execute(); reached();
+      return new Promise(resolve => { release = () => resolve(stale); });
+    }
+    return execute();
+  });
+  const oldCycle = h.api.syncNow(); await atRead;
+  h.api.setOwner(null); h.api.setOwner(USER_A);
+  const newCycle = h.api.syncNow();
+  assert.notEqual(newCycle, oldCycle);
+  assert.equal((await newCycle).ok, true);
+  assert.equal(h.api.getSyncStatus().pending, 0);
+  release();
+  assert.equal((await oldCycle).reason, 'account-changed');
+  assert.equal(h.api.getLocalItems()[0]._sync_status, 'synced');
+  assert.equal(h.api.getQuarantinedItems().length, 0);
+  assert.equal(h.writes.length, 1);
+});
+
+test('initial login defers requests beyond auth callback and awaits authoritative data without flashing cache', async () => {
+  const h = harness(); h.api.saveLocalItem(baselineRow()); h.api.setOwner(null);
+  let verifications = 0; h.verifyWith(async () => { verifications++; return true; });
+  let release, reached;
+  const atRead = new Promise(resolve => { reached = resolve; });
+  h.intercept((q, execute) => {
+    if (q.table === 'fcu_perceptions' && q.range) { reached(); return new Promise(resolve => { release = () => resolve(execute()); }); }
+    return execute();
+  });
+  assert.equal(h.authEvent('SIGNED_IN', USER_A), undefined);
+  assert.equal(verifications, 0, 'Account verification must also wait until the auth callback releases its lock.');
+  assert.equal(h.calls.length, 0, 'No client query executes while Supabase holds its auth callback lock.');
+  await atRead;
+  assert.equal(h.api.visible().length, 0);
+  assert.equal(h.api.getSyncStatus().checking, true);
+  const joining = h.api.syncNow(); release();
+  assert.equal((await joining).ok, true);
+  assert.equal(h.api.getQuarantinedItems().length, 1);
+});
+
+test('queued auth events discard obsolete owner callbacks and repeated same-owner refresh stays usable', async () => {
+  const rowB = perception({ id: '22222222-2222-4222-8222-222222222222', user_id: USER_B, updated_at: '2026-09-19T11:00:00Z' });
+  const h = harness({ rows: [baselineRow(), rowB] });
+  h.authEvent('SIGNED_IN', USER_A); h.authEvent('SIGNED_OUT', null); h.authEvent('SIGNED_IN', USER_B);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await h.api.syncNow();
+  assert(h.calls.every(q => q.filters.some(([k,v]) => k === 'user_id' && v === USER_B)));
+  assert.equal(h.api.visible()[0].user_id, USER_B);
+  const loaded = h.api.getSyncStatus().lastLoadedAt;
+  h.authEvent('TOKEN_REFRESHED', USER_B);
+  assert.equal(h.api.getSyncStatus().lastLoadedAt, loaded, 'Same-owner token refresh does not reset confirmed UI state.');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal((await h.api.syncNow()).ok, true);
+  assert.equal(h.api.getSyncStatus().syncing, false);
+});
+
+test('same-owner re-login bypasses an old read-only refresh lock without accepting its obsolete response', async () => {
+  const h = harness({ rows: [baselineRow()] }); h.api.saveLocalItem(baselineRow());
+  let release, reached, first = true;
+  const atRead = new Promise(resolve => { reached = resolve; });
+  h.intercept((q, execute) => {
+    if (first && q.table === 'fcu_perceptions' && q.range) {
+      first = false; const stale = execute(); reached();
+      return new Promise(resolve => { release = () => resolve(stale); });
+    }
+    return execute();
+  });
+  const oldRefresh = h.api.refreshDeviceCache(); await atRead;
+  h.api.setOwner(null); h.api.setOwner(USER_A);
+  h.server.set(ID, perception({ title: 'Nova sessão', updated_at: '2026-09-19T13:00:00Z' }));
+  assert.equal((await h.api.syncNow()).ok, true);
+  release();
+  assert.equal((await oldRefresh).reason, 'account-changed');
+  assert.equal(h.api.getLocalItems()[0].title, 'Nova sessão');
+  assert.equal(h.api.getSyncStatus().syncing, false);
+  assert.equal(h.writes.length, 0);
+});
+
+test('manual sync reports partial history without losing snapshots or claiming complete success', async () => {
+  const h = harness({ rows: [baselineRow()] });
+  h.api.saveLocalItem(baselineRow({ _history: [{ title: 'Preservar versão', geometry: perception().geometry, _source: 'server', version: 1 }], _server_version_count: 2, version_count: 2 }));
+  h.intercept((q, execute) => q.table === 'fcu_perception_versions' ? { data: null, error: { code: 'NETWORK' } } : execute());
+  const result = await h.api.syncNow();
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'partial-history');
+  assert.equal(h.api.getLocalItems()[0]._history[0].title, 'Preservar versão');
+  assert.equal(h.api.getLocalItems()[0].version_count, 2);
+});
+
+test('same-owner auth refresh joins an active manual cycle instead of starting duplicate writes', async () => {
+  const h = harness(); h.api.queue(perception());
+  let release, reached;
+  const atWrite = new Promise(resolve => { reached = resolve; });
+  h.intercept((q, execute) => {
+    if (q.operation === 'insert') { reached(); return new Promise(resolve => { release = () => resolve(execute()); }); }
+    return execute();
+  });
+  const cycle = h.api.syncNow(); await atWrite;
+  h.authEvent('SIGNED_IN', USER_A); h.authEvent('TOKEN_REFRESHED', USER_A);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(h.api.syncNow(), cycle);
+  release();
+  assert.equal((await cycle).ok, true);
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.calls.filter(q => q.table === 'fcu_perceptions' && q.range).length, 1);
 });

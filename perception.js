@@ -28,7 +28,8 @@
   // Keep old caches intact: only records with an explicit matching owner migrate.
   let accountEpoch = 0, loadedOwner = null, loadSequence = 0, authOwner, lastLoadedAt = null, cloudAvailable = null;
   const syncingItems = new Map();
-  const syncingOwners = new Set();
+  const syncingBatches = new Map();
+  const syncCycles = new Map();
   const refreshingOwners = new Set();
   let checkingCloud = false;
 
@@ -177,6 +178,11 @@
   function ownerId() { return authOwner !== undefined ? authOwner : user() && user().id || null; }
   function owns(record, id = ownerId()) { return !!(id && record && record.user_id === id); }
   function sameAccount(id, epoch) { return ownerId() === id && accountEpoch === epoch; }
+  function accountWorkKey(id, epoch = accountEpoch) { return id + ':' + epoch; }
+  function activeItemWrites(id, epoch = accountEpoch) {
+    const prefix = accountWorkKey(id, epoch) + ':';
+    return Array.from(syncingItems.entries()).filter(([key]) => key.startsWith(prefix)).map(([, work]) => work);
+  }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function cacheKey(id) { return LOCAL_STORAGE_KEY + id; }
   function quarantined(record) { return record && record._sync_status === 'quarantined'; }
@@ -235,7 +241,7 @@
       localOnly: records.filter(record => !['pending', 'synced', 'conflict', 'quarantined'].includes(record._sync_status)).length,
       quarantined: recoveryEntries(records).filter(entry => !entry.snapshot._recovered_copy_id).length,
       checking: checkingCloud,
-      syncing: !!id && (syncingOwners.has(id) || Array.from(syncingItems.keys()).some(key => key.startsWith(id + ':'))),
+      syncing: !!id && (syncingBatches.has(accountWorkKey(id)) || syncCycles.has(accountWorkKey(id)) || activeItemWrites(id).length > 0),
       offline, online: !offline, storageAvailable, lastLoadedAt, cloudAvailable
     };
   }
@@ -473,21 +479,70 @@
   }
   async function syncPendingItems() {
     const id = ownerId(), epoch = accountEpoch;
-    if (!client() || !id || syncingOwners.has(id) || refreshingOwners.has(id)) return;
-    syncingOwners.add(id);
-    emitSyncStatus();
-    try {
-      for (const item of getLocalItems(id).filter(x => x._sync_status === 'pending')) {
-        if (!sameAccount(id, epoch)) break;
-        await syncSingleItemToSupabase(item);
+    if (!client() || !id || refreshingOwners.has(accountWorkKey(id, epoch))) return;
+    const key = accountWorkKey(id, epoch);
+    if (syncingBatches.has(key)) return syncingBatches.get(key);
+    const work = Promise.resolve().then(async () => {
+      try {
+        if (!sameAccount(id, epoch)) return;
+        for (const item of getLocalItems(id).filter(x => x._sync_status === 'pending')) {
+          if (!sameAccount(id, epoch)) break;
+          await syncSingleItemToSupabase(item);
+        }
+      } catch (_) {
+        if (sameAccount(id, epoch)) status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true);
       }
-    } catch (_) { status('Não foi possível ler os desenhos locais. Eles não foram apagados.', true); }
-    finally { syncingOwners.delete(id); emitSyncStatus(); }
+    }).finally(() => {
+      if (syncingBatches.get(key) === work) syncingBatches.delete(key);
+      emitSyncStatus();
+    });
+    syncingBatches.set(key, work);
+    emitSyncStatus();
+    return work;
+  }
+  function syncNow() {
+    const id = ownerId();
+    resetForAccount(id);
+    if (!id) return Promise.resolve({ ok: false, reason: 'unauthenticated' });
+    const epoch = accountEpoch, key = accountWorkKey(id, epoch);
+    if (syncCycles.has(key)) return syncCycles.get(key);
+    if (refreshingOwners.has(key)) return Promise.resolve({ ok: false, reason: 'busy' });
+    // All callers for this login share one push+pull cycle. A re-login, even
+    // with the same owner, must not inherit an earlier session's in-flight work.
+    const work = Promise.resolve().then(async () => {
+      if (!sameAccount(id, epoch)) return { ok: false, reason: 'account-changed' };
+      if (!(await mayAccessCloud(id, epoch))) {
+        if (sameAccount(id, epoch)) refreshCachedUI(id);
+        return { ok: false, reason: sameAccount(id, epoch) ? 'unavailable' : 'account-changed' };
+      }
+      await syncPendingItems();
+      await Promise.all(activeItemWrites(id, epoch));
+      if (!sameAccount(id, epoch)) return { ok: false, reason: 'account-changed' };
+      // A completed push alone says nothing about edits on another device.
+      // The read is awaited, and must not recursively schedule another cycle.
+      const result = await load({ sync: false });
+      if (!sameAccount(id, epoch)) return { ok: false, reason: 'account-changed' };
+      const { pending, conflicts, quarantined } = getSyncStatus();
+      if (!result.ok) return { ...result, pending, conflicts, quarantined };
+      return { ...result, ok: pending === 0 && conflicts === 0,
+        reason: conflicts ? 'conflicts' : pending ? 'pending' : 'synchronized', pending, conflicts, quarantined };
+    }).catch(error => {
+      if (!sameAccount(id, epoch)) return { ok: false, reason: 'account-changed' };
+      cloudAvailable = false;
+      status('Não foi possível sincronizar agora. Os desenhos locais foram preservados.', true);
+      return { ok: false, reason: /quota|storage|cache/i.test(String(error?.message || '')) ? 'storage-unavailable' : 'unavailable' };
+    }).finally(() => {
+      if (syncCycles.get(key) === work) syncCycles.delete(key);
+      emitSyncStatus();
+    });
+    syncCycles.set(key, work);
+    emitSyncStatus();
+    return work;
   }
   async function syncSingleItemToSupabase(item) {
     const id = ownerId(), epoch = accountEpoch, c = client();
-    if (!c || !owns(item, id) || item._sync_status === 'conflict' || quarantined(item) || refreshingOwners.has(id)) return false;
-    const lock = id + ':' + item.id;
+    if (!c || !owns(item, id) || item._sync_status === 'conflict' || quarantined(item) || refreshingOwners.has(accountWorkKey(id, epoch))) return false;
+    const lock = accountWorkKey(id, epoch) + ':' + item.id;
     if (syncingItems.has(lock)) return syncingItems.get(lock);
     const work = (async () => {
       try {
@@ -499,7 +554,7 @@
         for (const op of operations) {
           if (!sameAccount(id, epoch)) return false;
           current = getLocalItems(id).find(x => x.id === item.id);
-          if (!current || current._sync_status === 'conflict' || quarantined(current) || refreshingOwners.has(id)) return false;
+          if (!current || current._sync_status === 'conflict' || quarantined(current) || refreshingOwners.has(accountWorkKey(id, epoch))) return false;
           if (!pendingOperations(current).some(x => x.revision === op.revision)) continue;
           const read = await c.from('fcu_perceptions').select('*').eq('id', item.id).eq('user_id', id).maybeSingle();
           if (!sameAccount(id, epoch) || read.error) return false;
@@ -517,7 +572,7 @@
               markConflict(current, server, id);
               return false;
             }
-            if (refreshingOwners.has(id)) return false;
+            if (refreshingOwners.has(accountWorkKey(id, epoch))) return false;
             let write = server ? c.from('fcu_perceptions').update(op.payload).eq('id', item.id).eq('user_id', id).eq('updated_at', current._server_updated_at) :
               c.from('fcu_perceptions').insert(op.payload);
             const result = await write.select('*');
@@ -1721,6 +1776,28 @@
     map.fitBounds(draftLayer.getBounds(),{padding:[50,50]});
   }
 
+  async function logoutProfile() {
+    if (!confirm('Deseja realmente sair da sua conta neste dispositivo?')) return { ok: false, reason: 'cancelled' };
+    const id = ownerId(), epoch = accountEpoch, button = $('#fcu-profile-logout');
+    if (button) button.disabled = true;
+    status('Saindo da conta...', false, '#fcu-profile-logout-status');
+    try {
+      const auth = window.PreditorAuth;
+      const result = typeof auth?.signOutLocal === 'function' ? await auth.signOutLocal() :
+        await client().auth.signOut({ scope: 'local' }).then(response => ({ ok: !response?.error, reason: response?.error ? 'signout-failed' : 'signed-out' }));
+      if (result.reason === 'account-changed' || (ownerId() && !sameAccount(id, epoch))) return { ok: false, reason: 'account-changed' };
+      if (!result.ok) {
+        status(result.message || 'Não foi possível sair agora. Sua sessão foi mantida; tente novamente.', true, '#fcu-profile-logout-status');
+        return result;
+      }
+      closeProfilePanel();
+      return result;
+    } catch (_) {
+      if (sameAccount(id, epoch)) status('Não foi possível sair agora. Sua sessão foi mantida; tente novamente.', true, '#fcu-profile-logout-status');
+      return { ok: false, reason: 'signout-failed' };
+    } finally { if (button) button.disabled = false; }
+  }
+
   function renderUserProfileTab() {
     const container = $('#fcu-account-content');
     if (!container) return;
@@ -1782,6 +1859,7 @@
         <button id="fcu-profile-logout" type="button" class="fcu-acc-logout-btn" title="Encerrar sessão nesta máquina">
           🚪 Sair da conta (Logout)
         </button>
+        <p id="fcu-profile-logout-status" class="fcu-perception-status" role="status" aria-live="polite"></p>
       </article>
 
       <!-- CARD 2: CADASTRO EXPANDIDO DO PARTICIPANTE (ESTUDOS FUTUROS) -->
@@ -1988,14 +2066,7 @@
     }
 
     if ($('#fcu-profile-logout')) {
-      $('#fcu-profile-logout').onclick = async () => {
-        if (confirm('Deseja realmente sair da sua conta?')) {
-          status('Saindo da conta...', false);
-          await db.auth.signOut();
-          closeProfilePanel();
-          window.location.reload();
-        }
-      };
+      $('#fcu-profile-logout').onclick = logoutProfile;
     }
 
     $('#fcu-pwd-form').onsubmit = async e => {
@@ -2310,6 +2381,14 @@
             historyComplete = true;
           } catch (_) { /* Existing local history is kept if history fetch fails. */ }
           if (!sameAccount(uId, epoch) || sequence !== loadSequence) return { ok: false, reason: sameAccount(uId, epoch) ? 'superseded' : 'account-changed' };
+          // A session can be revoked between the first account check and a
+          // successful empty RLS response. Recheck before treating absence as
+          // remote deletion; an unavailable/invalid check never erases cache.
+          if (!(await mayAccessCloud(uId, epoch))) {
+            if (sameAccount(uId, epoch)) refreshCachedUI(uId);
+            return { ok: false, reason: sameAccount(uId, epoch) ? 'unavailable' : 'account-changed' };
+          }
+          if (!sameAccount(uId, epoch) || sequence !== loadSequence) return { ok: false, reason: sameAccount(uId, epoch) ? 'superseded' : 'account-changed' };
           const counts = {};
           versions.forEach(v => counts[v.perception_id] = Math.max(counts[v.perception_id] || 0, v.version));
           const histories = new Map();
@@ -2380,12 +2459,26 @@
   async function refreshDeviceCache() {
     const id = ownerId();
     if (!id) return { ok: false, reason: 'unauthenticated' };
-    if (refreshingOwners.has(id) || syncingOwners.has(id) || Array.from(syncingItems.keys()).some(key => key.startsWith(id + ':')) || drawing || geometryEditing) {
+    const key = accountWorkKey(id);
+    if (refreshingOwners.has(key) || syncingBatches.has(key) || syncCycles.has(key) || activeItemWrites(id).length || drawing || geometryEditing) {
       return { ok: false, reason: 'busy' };
     }
-    refreshingOwners.add(id);
+    refreshingOwners.add(key);
     try { return await load({ sync: false }); }
-    finally { refreshingOwners.delete(id); emitSyncStatus(); }
+    finally { refreshingOwners.delete(key); emitSyncStatus(); }
+  }
+
+  function handleAuthChange(_event, session) {
+    authOwner = session && session.user && session.user.id || null;
+    resetForAccount(authOwner);
+    const id = authOwner, epoch = accountEpoch;
+    // Supabase holds its auth lock while this callback runs. Never await or
+    // start client requests until a later task, including same-owner refreshes.
+    setTimeout(() => {
+      if (!sameAccount(id, epoch)) return;
+      if (id) syncNow(); else load({ sync: false });
+      renderLegendControl();
+    }, 0);
   }
 
   function init(){
@@ -2405,21 +2498,17 @@
     });
     const c = client();
     if (c && c.auth) {
-      c.auth.onAuthStateChange((_event, session)=>{
-        authOwner = session && session.user && session.user.id || null;
-        resetForAccount(authOwner);
-        setTimeout(()=>{load();renderLegendControl();syncPendingItems();},0);
-      });
+      c.auth.onAuthStateChange(handleAuthChange);
     }
-    load();
-    syncPendingItems();
+    if (ownerId()) syncNow(); else load({ sync: false });
     
-    window.addEventListener('online', () => load());
+    window.addEventListener('online', () => syncNow());
     window.addEventListener('offline', () => emitSyncStatus());
-    window.addEventListener('focus', () => load());
-    window.addEventListener('storage', event => { if (ownerId() && event.key === cacheKey(ownerId())) load(); });
+    window.addEventListener('focus', () => syncNow());
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && ownerId()) syncNow(); });
+    window.addEventListener('storage', event => { if (ownerId() && event.key === cacheKey(ownerId())) syncNow(); });
     setInterval(() => syncPendingItems(), 15000);
-    setInterval(() => { if (!document.hidden && !drawing && !geometryEditing && ownerId()) load(); }, 60000);
+    setInterval(() => { if (!document.hidden && !drawing && !geometryEditing && ownerId()) syncNow(); }, 60000);
 
     setInterval(()=>{
       const id=String((sample()||{}).id||'');
@@ -2438,7 +2527,7 @@
       openProfile: openProfilePanel,
       closeProfile: closeProfilePanel,
       exportQGIS: exportGeoJSONWithFilters,
-      syncNow: syncPendingItems,
+      syncNow: syncNow,
       getSyncStatus: getSyncStatus,
       refreshDeviceCache: refreshDeviceCache,
       getQuarantinedItems: getQuarantinedItems,
