@@ -77,15 +77,15 @@ body.fcu-mobile-simple.fcu-mobile-areas-open .fcu-mobile-area-shade { display:bl
 body.fcu-mobile-simple .sidebar-overlay { display:none!important; }
 body.fcu-mobile-simple .fcu-perception-shade { display:none!important; }
 body.fcu-mobile-simple .fcu-perception-panel {
-  inset:auto 8px calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom)) 8px; width:auto; height:43dvh; min-height:180px; max-height:calc(100dvh - var(--fcu-mobile-top) - var(--fcu-mobile-bottom) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  padding:0 14px 18px; border:1px solid #d6dce6; border-radius:20px 20px 0 0; box-shadow:0 -6px 26px #07324d24; transform:translateY(calc(100% + 110px)); transition:height .18s ease,transform .18s ease; overscroll-behavior:contain; scroll-padding-top:64px; -webkit-overflow-scrolling:touch;
+  inset:auto 8px calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom) + var(--fcu-sheet-viewport-inset,0px)) 8px; width:auto; height:var(--fcu-sheet-height,min(32dvh,300px)); min-height:0; max-height:calc(100dvh - var(--fcu-mobile-top) - var(--fcu-mobile-bottom) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  box-sizing:border-box; padding:0 12px 12px; border:1px solid #d6dce6; border-radius:16px 16px 0 0; box-shadow:0 -4px 20px #07324d20; transform:translateY(calc(100% + 110px)); transition:height .18s ease,transform .18s ease; overscroll-behavior:contain; scroll-padding-top:60px; -webkit-overflow-scrolling:touch;
 }
 body.fcu-mobile-simple .fcu-perception-panel.is-open { transform:translateY(0); }
-body.fcu-mobile-simple .fcu-perception-panel[data-mobile-sheet="expanded"] { height:70dvh; }
-body.fcu-mobile-simple .fcu-perception-panel[data-mobile-sheet="peek"] { height:68px; min-height:68px; overflow:hidden; }
-body.fcu-mobile-simple .fcu-sheet-controls { display:flex; align-items:center; position:sticky; top:0; z-index:35; background:white; margin:0 -2px 10px; min-height:60px; border-bottom:1px solid #edf0f4; }
-.fcu-sheet-handle { position:relative; display:flex; align-items:center; justify-content:space-between; gap:12px; flex:1; min-width:0; border:0; background:white; color:#07324d; min-height:59px; padding:13px 10px 0 0; font:700 14px Inter,system-ui,sans-serif; touch-action:none; cursor:ns-resize; }
-.fcu-sheet-handle i { position:absolute; top:7px; left:calc(50% - 8px); width:34px; height:4px; border-radius:3px; background:#cbd3df; }
+body.fcu-mobile-simple .fcu-perception-panel.is-dragging { transition:none; user-select:none; }
+body.fcu-mobile-simple .fcu-perception-panel[data-mobile-sheet="peek"] { overflow:hidden; }
+body.fcu-mobile-simple .fcu-sheet-controls { display:flex; align-items:center; position:sticky; top:0; z-index:35; background:white; margin:0 -2px 8px; height:56px; min-height:56px; border-bottom:1px solid #edf0f4; }
+.fcu-sheet-handle { position:relative; display:flex; align-items:center; justify-content:space-between; gap:8px; flex:1; min-width:0; border:0; background:white; color:#07324d; height:56px; min-height:44px; padding:10px 8px 0 0; font:700 13px Inter,system-ui,sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; cursor:ns-resize; }
+.fcu-sheet-handle i { position:absolute; top:5px; left:calc(50% - 17px); width:34px; height:4px; border-radius:3px; background:#b8c3d1; }
 .fcu-sheet-action { color:#795e95; font-size:11px; font-weight:600; }
 .fcu-sheet-close { flex-shrink:0; width:44px; height:44px; border:0; border-radius:50%; background:#f4f5f8; color:#52677a; font-size:23px; }
 body.fcu-mobile-simple .fcu-perception-head { display:none; }
@@ -103,8 +103,9 @@ body.fcu-mobile-simple .fcu-perception-primary,
 body.fcu-mobile-simple .fcu-perception-secondary { min-height:44px; padding:11px 12px; font-size:13px; }
 body.fcu-mobile-simple .fcu-perception-secondary { color:#654c7e; border-color:#d8cce3; }
 body.fcu-mobile-simple .fcu-filter-box summary,
-body.fcu-mobile-simple .fcu-extra-details summary { min-height:34px; display:flex; align-items:center; font-size:13px; }
-body.fcu-mobile-simple .fcu-perception-item-actions button { min-height:42px; }
+body.fcu-mobile-simple .fcu-extra-details summary { min-height:44px; display:flex; align-items:center; font-size:13px; }
+body.fcu-mobile-simple .fcu-perception-tabs button,
+body.fcu-mobile-simple .fcu-perception-item-actions button { min-height:44px; }
 body.fcu-mobile-simple .fcu-choice { min-height:46px; padding:10px; margin:7px 0; }
 body.fcu-mobile-simple .fcu-perception-form input,
 body.fcu-mobile-simple .fcu-perception-form textarea,
@@ -128,9 +129,35 @@ body.fcu-mobile-simple .fcu-acc-field input { width:100%; max-width:100%; min-wi
 body.fcu-mobile-simple .fcu-qgis-counter-banner { flex-wrap:wrap; gap:6px; }
 body.fcu-mobile-simple .fcu-auth-backdrop { z-index:16000; }
 body.fcu-mobile-simple .fcu-perception-drawnote,
-body.fcu-mobile-simple .fcu-geometry-toolbar { top:auto!important; bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom) + 8px)!important; left:8px!important; right:8px!important; width:auto!important; min-width:0; max-width:none; transform:none!important; max-height:40dvh; overflow-y:auto; border-radius:14px; flex-wrap:wrap; padding:10px; }
+body.fcu-mobile-simple .fcu-geometry-toolbar { top:auto!important; bottom:calc(var(--fcu-mobile-bottom) + env(safe-area-inset-bottom) + 8px)!important; left:auto!important; right:8px!important; width:min(360px,calc(100vw - 16px))!important; box-sizing:border-box; min-width:0; max-width:none; transform:none!important; max-height:calc(100dvh - var(--fcu-mobile-top) - var(--fcu-mobile-bottom) - 16px); overflow-y:auto; border-radius:12px; flex-wrap:wrap; padding:6px 8px; }
+body.fcu-mobile-simple [data-mobile-floating="true"].fcu-perception-drawnote,
+body.fcu-mobile-simple [data-mobile-floating="true"].fcu-geometry-toolbar { top:var(--fcu-toolbar-top)!important; bottom:auto!important; left:var(--fcu-toolbar-left)!important; right:auto!important; width:min(var(--fcu-toolbar-width),calc(100vw - 16px))!important; }
+body.fcu-mobile-simple .fcu-gis-head,
+body.fcu-mobile-simple .fcu-geometry-toolbar > div:first-child { min-height:44px; box-sizing:border-box; touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
+body.fcu-mobile-simple .fcu-gis-head { margin:0; padding:4px 0; border:0; gap:6px; }
+body.fcu-mobile-simple .fcu-gis-badge { font-size:0; letter-spacing:0; }
+body.fcu-mobile-simple .fcu-gis-badge::after { content:'Desenhar área'; font-size:12px; text-transform:none; }
+body.fcu-mobile-simple .fcu-gis-drag-hint { font-size:0!important; padding:4px 8px!important; }
+body.fcu-mobile-simple .fcu-gis-drag-hint::after { content:'↕'; font-size:20px; }
+body.fcu-mobile-simple .fcu-gis-guide-banner { display:none; }
+body.fcu-mobile-simple .fcu-gis-tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+body.fcu-mobile-simple .fcu-gis-group { min-width:0; padding:2px; gap:2px; }
+body.fcu-mobile-simple .fcu-gis-group:first-child { grid-column:1/-1; }
+body.fcu-mobile-simple .fcu-gis-btn { flex:1; justify-content:center; min-width:0; padding:6px 3px; gap:3px; font-size:11px; }
+body.fcu-mobile-simple #fcu-mode-vertices .fcu-gis-label { font-size:0; }
+body.fcu-mobile-simple #fcu-mode-vertices .fcu-gis-label::after { content:'Pontos'; font-size:12px; }
+body.fcu-mobile-simple #fcu-undo .fcu-gis-icon,
+body.fcu-mobile-simple #fcu-clear .fcu-gis-icon,
+body.fcu-mobile-simple #fcu-cancel .fcu-gis-icon { display:none; }
+body.fcu-mobile-simple .fcu-geometry-toolbar { gap:2px; }
+body.fcu-mobile-simple .fcu-geometry-toolbar > div:first-child { display:flex; flex-direction:column; justify-content:center; width:100%; padding-right:24px; position:relative; }
+body.fcu-mobile-simple .fcu-geometry-toolbar > div:first-child::after { content:'↕'; position:absolute; right:4px; top:10px; font-size:20px; }
+body.fcu-mobile-simple .fcu-geometry-toolbar > div:first-child span { display:none; }
+body.fcu-mobile-simple .fcu-geometry-toolbar > div:last-child { display:grid; width:100%; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+body.fcu-mobile-simple .fcu-geometry-toolbar button { justify-content:center; padding:6px 4px; font-size:11px; }
+body.fcu-mobile-simple #fcu-editor-ok { grid-column:2/-1; }
 body.fcu-mobile-simple .fcu-perception-drawnote button,
-body.fcu-mobile-simple .fcu-geometry-toolbar button { min-height:42px; }
+body.fcu-mobile-simple .fcu-geometry-toolbar button { min-height:44px; }
 body.fcu-mobile-simple.fcu-mobile-drawing .fcu-perception-map-tools { display:none; }
 body.fcu-mobile-simple :focus-visible { outline:3px solid #8366a2; outline-offset:2px; }
 @media (min-width:700px) {

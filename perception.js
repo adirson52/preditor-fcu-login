@@ -59,69 +59,117 @@
 
   function makeElementDraggable(el, handle) {
     if (!el) return;
+    if (el._fcuDragCleanup) el._fcuDragCleanup();
     const dragTarget = handle || el;
     dragTarget.style.cursor = 'grab';
+    dragTarget.style.touchAction = 'none';
+    dragTarget.style.userSelect = 'none';
+    dragTarget.dataset.fcuDragHandle = 'true';
+    dragTarget.title = 'Arraste este cabeçalho para mover o menu';
 
-    let isDraggingBar = false;
+    let pointer = null, frame = 0, floating = false, naturalWidth = 0;
     let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
-
-    const onPointerDown = (e) => {
-      if (e.target.closest('button, input, select, textarea, a')) return;
-      isDraggingBar = true;
-      startX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-      startY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-
-      const rect = el.getBoundingClientRect();
-      initialLeft = rect.left;
-      initialTop = rect.top;
-
-      el.style.left = initialLeft + 'px';
-      el.style.top = initialTop + 'px';
-      el.style.bottom = 'auto';
-      el.style.transform = 'none';
-      dragTarget.style.cursor = 'grabbing';
-
-      if (e.stopPropagation) e.stopPropagation();
-    };
-
-    const onPointerMove = (e) => {
-      if (!isDraggingBar) return;
-      const currentX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-      const currentY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-
-      const dx = currentX - startX;
-      const dy = currentY - startY;
-
-      let newLeft = initialLeft + dx;
-      let newTop = initialTop + dy;
-
-      const maxLeft = window.innerWidth - el.offsetWidth;
-      const maxTop = window.innerHeight - el.offsetHeight;
-
-      newLeft = Math.max(8, Math.min(maxLeft - 8, newLeft));
-      newTop = Math.max(8, Math.min(maxTop - 8, newTop));
-
-      el.style.left = newLeft + 'px';
-      el.style.top = newTop + 'px';
-
-      if (e.preventDefault) e.preventDefault();
-    };
-
-    const onPointerUp = () => {
-      if (isDraggingBar) {
-        isDraggingBar = false;
-        dragTarget.style.cursor = 'grab';
+    const viewportBounds = () => {
+      const view = window.visualViewport;
+      const left = (view ? view.offsetLeft : 0) + 8;
+      const right = left + (view ? view.width : window.innerWidth) - 16;
+      let top = (view ? view.offsetTop : 0) + 8;
+      let bottom = top + (view ? view.height : window.innerHeight) - 16;
+      if (document.body.classList.contains('fcu-mobile-simple')) {
+        const header = document.querySelector('.fcu-mobile-topbar');
+        const nav = document.querySelector('.fcu-mobile-bottom') || document.querySelector('.fcu-mobile-nav');
+        if (header && header.getClientRects().length) top = Math.max(top, header.getBoundingClientRect().bottom + 8);
+        if (nav && nav.getClientRects().length) bottom = Math.min(bottom, nav.getBoundingClientRect().top - 8);
       }
+      return { left, right, top, bottom: Math.max(top + 44, bottom) };
     };
-
-    dragTarget.addEventListener('mousedown', onPointerDown);
-    dragTarget.addEventListener('touchstart', onPointerDown, { passive: false });
-
-    window.addEventListener('mousemove', onPointerMove);
-    window.addEventListener('touchmove', onPointerMove, { passive: false });
-
-    window.addEventListener('mouseup', onPointerUp);
-    window.addEventListener('touchend', onPointerUp);
+    const place = (left, top) => {
+      const bounds = viewportBounds();
+      const width = Math.max(44, Math.min(naturalWidth, bounds.right - bounds.left));
+      el.style.boxSizing = 'border-box';
+      el.style.setProperty('--fcu-toolbar-width', width + 'px');
+      el.style.width = width + 'px';
+      el.style.maxWidth = (bounds.right - bounds.left) + 'px';
+      el.style.maxHeight = (bounds.bottom - bounds.top) + 'px';
+      el.style.overflowY = 'auto';
+      const rect = el.getBoundingClientRect();
+      left = Math.max(bounds.left, Math.min(bounds.right - rect.width, left));
+      top = Math.max(bounds.top, Math.min(bounds.bottom - rect.height, top));
+      el.style.setProperty('--fcu-toolbar-left', left + 'px');
+      el.style.setProperty('--fcu-toolbar-top', top + 'px');
+      el.style.left = left + 'px';
+      el.style.top = top + 'px';
+      el.style.bottom = 'auto';
+      el.style.right = 'auto';
+      el.style.transform = 'none';
+    };
+    const scheduleClamp = () => {
+      if (!floating || frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        if (!el.isConnected) return cleanup();
+        const rect = el.getBoundingClientRect();
+        place(rect.left, rect.top);
+      });
+    };
+    const onPointerDown = e => {
+      if (pointer !== null || e.isPrimary === false || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (e.target.closest('button, input, select, textarea, a, [contenteditable="true"]')) return;
+      const rect = el.getBoundingClientRect();
+      naturalWidth = naturalWidth || rect.width;
+      floating = true;
+      // The mobile stylesheet uses these variables instead of its bottom anchor.
+      el.dataset.mobileFloating = 'true';
+      place(rect.left, rect.top);
+      const placed = el.getBoundingClientRect();
+      initialLeft = placed.left; initialTop = placed.top;
+      startX = e.clientX; startY = e.clientY; pointer = e.pointerId;
+      try { dragTarget.setPointerCapture(pointer); } catch (_) { /* Synthetic input may not support capture. */ }
+      dragTarget.style.cursor = 'grabbing';
+      e.preventDefault(); e.stopPropagation();
+    };
+    const onPointerMove = e => {
+      if (pointer !== e.pointerId) return;
+      place(initialLeft + e.clientX - startX, initialTop + e.clientY - startY);
+      e.preventDefault(); e.stopPropagation();
+    };
+    const onPointerEnd = e => {
+      if (pointer !== e.pointerId) return;
+      const released = pointer; pointer = null;
+      if (dragTarget.hasPointerCapture(released)) dragTarget.releasePointerCapture(released);
+      dragTarget.style.cursor = 'grab';
+      scheduleClamp();
+      e.stopPropagation();
+    };
+    const observer = new MutationObserver(() => { if (!el.isConnected) cleanup(); });
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(scheduleClamp) : null;
+    const cleanup = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      observer.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', scheduleClamp);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', scheduleClamp);
+        window.visualViewport.removeEventListener('scroll', scheduleClamp);
+      }
+      dragTarget.removeEventListener('pointerdown', onPointerDown);
+      dragTarget.removeEventListener('pointermove', onPointerMove);
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => dragTarget.removeEventListener(type, onPointerEnd));
+      pointer = null;
+      delete el._fcuDragCleanup;
+    };
+    el._fcuDragCleanup = cleanup;
+    dragTarget.addEventListener('pointerdown', onPointerDown, { passive: false });
+    dragTarget.addEventListener('pointermove', onPointerMove, { passive: false });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => dragTarget.addEventListener(type, onPointerEnd));
+    window.addEventListener('resize', scheduleClamp);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', scheduleClamp);
+      window.visualViewport.addEventListener('scroll', scheduleClamp);
+    }
+    observer.observe(document.body, { childList: true, subtree: true });
+    if (resizeObserver) resizeObserver.observe(el);
   }
 
   // The database owns authorization and online history. This cache keeps each

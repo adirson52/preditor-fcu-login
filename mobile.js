@@ -13,6 +13,8 @@
   let simple = false;
   let sheet = null;
   let sheetState = 'half';
+  let sheetGesture = null;
+  let sheetResizeFrame = 0;
   let previousFormVisible = false;
   let syncError = '';
 
@@ -37,6 +39,7 @@
       try { (window.rfSafeStorage || window.localStorage).setItem(KEY, mode); } catch (_) {}
     }
     simple = mode === 'simple';
+    finishSheetGesture(true);
     document.body.classList.toggle('fcu-mobile-simple', simple);
     document.querySelectorAll('[data-fcu-mode]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.fcuMode === mode));
@@ -47,6 +50,7 @@
       closeAreas();
     }
     syncChrome();
+    refreshSheetSize();
     requestAnimationFrame(() => {
       resizeMap();
       if (view) currentMap.setView(view.center, view.zoom, { animate: false });
@@ -60,14 +64,71 @@
     if (typeof window.closeSidebar === 'function') window.closeSidebar();
   }
 
+  function sheetSizes() {
+    const viewport = window.visualViewport;
+    const height = viewport?.height || window.innerHeight;
+    const top = viewport?.offsetTop || 0;
+    const inset = Math.max(0, window.innerHeight - top - height);
+    const headerBottom = $('.fcu-mobile-topbar')?.getBoundingClientRect().bottom || top;
+    const navigationHeight = $('.fcu-mobile-bottom')?.getBoundingClientRect().height || 94;
+    const available = Math.max(60, top + height - navigationHeight - Math.max(top, headerBottom) - 8);
+    const expanded = Math.min(available, Math.max(60, height * .70));
+    return { peek: Math.min(60, expanded), half: Math.min(expanded, Math.max(180, Math.min(300, height * .32))), expanded, inset };
+  }
+
+  function applySheetHeight(height, sizes = sheetSizes()) {
+    if (!sheet) return;
+    sheet.style.setProperty('--fcu-sheet-height', Math.round(Math.max(sizes.peek, Math.min(sizes.expanded, height))) + 'px');
+    sheet.style.setProperty('--fcu-sheet-viewport-inset', Math.round(sizes.inset) + 'px');
+  }
+
+  function refreshSheetSize() {
+    if (!sheet) return;
+    finishSheetGesture(true);
+    const sizes = sheetSizes();
+    applySheetHeight(sizes[sheetState], sizes);
+  }
+
+  function scheduleSheetResize() {
+    if (sheetResizeFrame) return;
+    sheetResizeFrame = requestAnimationFrame(() => { sheetResizeFrame = 0; refreshSheetSize(); });
+  }
+
   function setSheetState(state) {
     sheetState = state;
     if (!sheet) return;
     sheet.dataset.mobileSheet = state;
+    if (state === 'peek') sheet.scrollTop = 0;
+    const sizes = sheetSizes();
+    applySheetHeight(sizes[state], sizes);
     const handle = sheet.querySelector('.fcu-sheet-handle');
     handle.setAttribute('aria-expanded', String(state !== 'peek'));
-    handle.setAttribute('aria-label', state === 'expanded' ? 'Recolher percepções' : 'Expandir percepções');
-    handle.querySelector('.fcu-sheet-action').textContent = state === 'expanded' ? 'Recolher' : 'Expandir';
+    handle.setAttribute('aria-label', state === 'expanded' ? 'Recolher percepções' : state === 'peek' ? 'Abrir percepções' : 'Expandir percepções');
+    handle.querySelector('.fcu-sheet-action').textContent = state === 'expanded' ? 'Recolher' : state === 'peek' ? 'Abrir' : 'Expandir';
+  }
+
+  function toggleSheetState() {
+    setSheetState(sheetState === 'peek' || sheetState === 'expanded' ? 'half' : 'expanded');
+  }
+
+  function finishSheetGesture(cancelled, event) {
+    const gesture = sheetGesture;
+    if (!gesture || (event && event.pointerId !== gesture.pointerId)) return;
+    // Clear first: releasing capture may synchronously fire lostpointercapture.
+    sheetGesture = null;
+    sheet.classList.remove('is-dragging');
+    const handle = sheet.querySelector('.fcu-sheet-handle');
+    try {
+      if (handle.hasPointerCapture?.(gesture.pointerId)) handle.releasePointerCapture(gesture.pointerId);
+    } catch (_) { /* The browser may have already cancelled capture. */ }
+    if (cancelled) { setSheetState(gesture.state); return; }
+    if (!gesture.moved) { toggleSheetState(); return; }
+    const sizes = sheetSizes();
+    const distance = gesture.lastY - gesture.startY;
+    const target = gesture.height - Math.sign(distance) * Math.min(24, Math.abs(distance) * .25);
+    const state = ['peek', 'half', 'expanded'].reduce((closest, candidate) =>
+      Math.abs(sizes[candidate] - target) < Math.abs(sizes[closest] - target) ? candidate : closest, gesture.state);
+    setSheetState(state);
   }
 
   function connectSheet() {
@@ -76,24 +137,37 @@
     sheet = panel;
     sheet.insertAdjacentHTML('afterbegin', '<div class="fcu-sheet-controls"><button type="button" class="fcu-sheet-handle" aria-controls="fcu-perception-start fcu-perception-form"><i aria-hidden="true"></i><span>Minhas percepções</span><small class="fcu-sheet-action">Expandir</small></button><button type="button" class="fcu-sheet-close" aria-label="Fechar percepções">×</button></div>');
     const handle = sheet.querySelector('.fcu-sheet-handle');
-    let dragStart = null;
-    let dragged = false;
     handle.addEventListener('pointerdown', event => {
-      dragStart = event.clientY;
-      dragged = false;
-      handle.setPointerCapture?.(event.pointerId);
+      if (!simple || sheetGesture || event.isPrimary === false || event.button !== 0) return;
+      event.preventDefault();
+      const height = sheet.getBoundingClientRect().height;
+      sheetGesture = { pointerId: event.pointerId, startY: event.clientY, lastY: event.clientY,
+        startHeight: height, height,
+        state: sheetState, moved: false };
+      sheet.classList.add('is-dragging');
+      applySheetHeight(sheetGesture.height);
+      try { handle.setPointerCapture?.(event.pointerId); } catch (_) { /* Synthetic or cancelled pointer. */ }
     });
-    handle.addEventListener('pointerup', event => {
-      if (dragStart === null) return;
-      const distance = event.clientY - dragStart;
-      dragged = Math.abs(distance) > 24;
-      if (dragged) setSheetState(distance < 0 ? 'expanded' : 'peek');
-      dragStart = null;
+    handle.addEventListener('pointermove', event => {
+      if (!sheetGesture || event.pointerId !== sheetGesture.pointerId) return;
+      event.preventDefault();
+      const distance = event.clientY - sheetGesture.startY;
+      sheetGesture.lastY = event.clientY;
+      if (Math.abs(distance) >= 6) sheetGesture.moved = true;
+      if (!sheetGesture.moved) return;
+      const sizes = sheetSizes();
+      sheetGesture.height = Math.max(sizes.peek, Math.min(sizes.expanded, sheetGesture.startHeight - distance));
+      if (sheetGesture.height <= sizes.peek + 1) sheet.scrollTop = 0;
+      applySheetHeight(sheetGesture.height, sizes);
     });
-    handle.addEventListener('pointercancel', () => { dragStart = null; dragged = false; });
-    handle.addEventListener('click', () => {
-      if (dragged) { dragged = false; return; }
-      setSheetState(sheetState === 'expanded' ? 'half' : 'expanded');
+    handle.addEventListener('pointerup', event => { event.preventDefault(); finishSheetGesture(false, event); });
+    handle.addEventListener('pointercancel', event => finishSheetGesture(true, event));
+    handle.addEventListener('lostpointercapture', event => finishSheetGesture(true, event));
+    handle.addEventListener('click', event => {
+      // Pointer taps are handled on release; their compatibility click must not
+      // toggle twice after the handle has moved. Keyboard/assistive clicks remain.
+      if (event.detail > 0 || event.pointerType) { event.preventDefault(); return; }
+      toggleSheetState();
     });
     sheet.querySelector('.fcu-sheet-close').onclick = () => window.PreditorPerception?.close();
     const filters = sheet.querySelector('.fcu-filter-box');
@@ -111,6 +185,7 @@
   function syncChrome() {
     const perceptionOpen = !!window.PreditorPerception?.isOpen();
     const accountOpen = document.body.classList.contains('fcu-account-open');
+    if (!perceptionOpen) finishSheetGesture(true);
     if (sheet) sheet.inert = !perceptionOpen;
     const sidebar = $('#site-sidebar');
     if (sidebar) sidebar.inert = simple && !document.body.classList.contains('fcu-mobile-areas-open');
@@ -214,6 +289,10 @@
     window.addEventListener('preditor:perception-sync-state', refreshSync);
     window.addEventListener('online', refreshSync);
     window.addEventListener('offline', refreshSync);
+    window.addEventListener('resize', scheduleSheetResize);
+    window.addEventListener('orientationchange', scheduleSheetResize);
+    window.visualViewport?.addEventListener('resize', scheduleSheetResize);
+    window.visualViewport?.addEventListener('scroll', scheduleSheetResize);
     compactViewport.addEventListener('change', () => { if (!preference) chooseMode(compactViewport.matches ? 'simple' : 'complete', false); });
     new MutationObserver(syncChrome).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     chooseMode(preference || (compactViewport.matches ? 'simple' : 'complete'), false);

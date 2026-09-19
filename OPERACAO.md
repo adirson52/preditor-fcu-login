@@ -68,3 +68,11 @@ A migração `20260919150543_perception_deletion_markers.sql` na Master registra
 A migração complementar `20260919151716_perception_identity_guard.sql` mantém imutáveis o identificador e o proprietário, mesmo quando o histórico passa por manutenção. Testes transacionais reais verificaram exclusão/reinserção, identidade e arquivamento/restauração, com rollback ao final. Os testes locais desta correção incluem 59 contratos de autenticação/sincronização, 52 da Master e 17 testes de navegador; um ensaio opcional de conta QA foi omitido porque essas contas estão na lixeira. A falha de cache foi reproduzida com o motor e mapa reais no navegador, usando banco simulado para não criar dados de pesquisa.
 
 Limpar o cache HTTP do Chrome/Safari não limpa necessariamente os desenhos guardados no armazenamento local. Limpar **todos os dados do site** pode encerrar a sessão e perder alterações ainda não enviadas; preferir o botão acima. Registros já reenviados ao banco não desaparecem limpando apenas o aparelho: qualquer arquivamento desses registros exige seleção e confirmação administrativa.
+
+## Painéis e menus móveis — 19/09/2026
+
+O painel Minhas percepções abre compacto (aproximadamente 32% da altura, limitado a 300 px em retrato). Arrastar a alça ajusta a altura continuamente e encaixa o painel em recolhido, compacto ou expandido; tocar na alça alterna as posições. A lista continua rolando separadamente. Tamanho e posição acompanham mudança de orientação e área visível do navegador.
+
+As barras de desenho e edição são compactas no modo Simplificado, mantêm botões de pelo menos 44 px e aceitam arraste pelo cabeçalho, sem deslocar o mapa. A posição é limitada para não esconder o menu atrás da navegação inferior. A posição de menus é apenas apresentação, não altera geometrias nem grava percepções.
+
+Testes específicos: `tests/mobile-sheet.spec.js` e `tests/mobile-toolbar.spec.js`, usando toque emulado e dados simulados, sem contas ou escritas no banco. O V1, a Master e os fluxos de autenticação/sincronização não recebem alterações nesta correção. Continuam separados os ajustes pendentes da auditoria: sincronização manual com leitura remota, edição de geometria pequena com mapa afastado e gerenciamento das prévias temporárias.
