@@ -24,3 +24,4 @@ auth-register.png
 .env*
 .vercel
 .env*
+dist/

@@ -286,6 +286,7 @@
   }
 
   function collectionDisabled() {
+    if(window.FCUAccessConfig){try{if(JSON.parse(localStorage.getItem('fcu_privacy_v1')||'null')?.choice!=='analytics')return true;}catch(_){return true;}}
     return runtimeOptOut || preferenceGet(OPTOUT_KEY) === '1' || privacySignalEnabled();
   }
 
@@ -406,6 +407,7 @@
   }
 
   function showLocationBanner() {
+    if(window.FCUAccessConfig)return; // Cookie choice is separate from an explicit device-location request.
     if (pageType() === 'privacidade' || !document.body || document.getElementById(LOCATION_BANNER_ID)
         || collectionDisabled()
         || locationState(LOCATION_PROMPT_KEY)
