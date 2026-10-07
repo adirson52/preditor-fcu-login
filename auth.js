@@ -250,7 +250,16 @@
     if (visible) window.setTimeout(function () { visible.focus(); }, 30);
   }
 
+  function goToAccess(view) {
+    const target = new URL('/acesso', location.origin);
+    target.searchParams.set('view', view || 'login');
+    target.searchParams.set('next', location.pathname + location.search + location.hash);
+    location.assign(target.href);
+  }
+
   function openModal(view, lead) {
+    const destination = { login: 'login', register: 'request', reset: 'recovery', 'new-password': 'password' }[view || (!currentUser ? 'login' : '')];
+    if (destination) return goToAccess(destination);
     if (lead) document.getElementById('fcu-auth-lead').textContent = lead;
     setView(view || (currentUser ? 'account' : 'login'));
     ui.backdrop.classList.add('is-open');
@@ -281,11 +290,18 @@
     if (accountCheck && accountCheck.userId === candidate.id) return accountCheck.promise;
     const task = (async function () {
       try {
-        const result = await client.rpc('fcu_my_account_status');
+        const result = await client.rpc('fcu_my_products');
         if (result.error || !result.data || typeof result.data.session_valid !== 'boolean') return null;
         // An old response cannot sign out a different account opened in the meantime.
         if (currentUser && currentUser.id !== candidate.id) return false;
-        if (result.data.session_valid === true) return true;
+        if (result.data.session_valid === true) {
+          if (result.data.password_change_required === true) { goToAccess('password'); return false; }
+          const productId = window.FCUAccessConfig?.id || 'login';
+          if (result.data.access_ready === false || (result.data.account_status && result.data.account_status !== 'active') || !result.data.products?.some(p => p.id === productId && p.allowed === true)) {
+            goToAccess('account'); return false;
+          }
+          return true;
+        }
         invalidatingAccount = true;
         const reason = result.data.account_status === 'deleted'
           ? 'Sua conta está na lixeira. A equipe pode restaurá-la; suas percepções foram preservadas.'
@@ -467,154 +483,12 @@
     return true;
   }
 
-  document.getElementById('fcu-login-form').addEventListener('submit', async function (event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    setBusy(form, true);
-    setMessage('Entrando...');
-    const values = new FormData(form);
-    const email = String(values.get('email') || '').trim();
-    const password = String(values.get('password') || '');
-    if (!password || password.length < 6) {
-      setBusy(form, false);
-      return setMessage('A senha deve ter no mínimo 6 caracteres.', true);
-    }
-    const result = await client.auth.signInWithPassword({ email, password });
-    setBusy(form, false);
-    if (result.error) {
-      let msg = result.error.message || 'Confira e-mail e senha.';
-      if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
-      else if (msg.includes('Email not confirmed')) msg = 'O acesso desta conta ainda não foi liberado. Use “Falar com a equipe” para pedir ajuda.';
-      else if (msg.includes('Password should be at least') || msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 6 caracteres.';
-      return setMessage('Não foi possível entrar: ' + msg, true);
-    }
-    updateUserUi(result.data.user);
-    const access = await verifyAccount(result.data.user);
-    if (access === false) return;
-    if (access !== true) return setMessage('Sua senha foi aceita, mas não foi possível confirmar o acesso agora. Confira a conexão e tente novamente; seus dados locais foram preservados.', true);
-    if (result.data.user.user_metadata?.must_change_password === true) {
-      return openModal('new-password', 'Defina sua nova senha pessoal para continuar.');
-    }
-    setMessage('Acesso confirmado.');
-    closeModal();
-    // Telemetry must not leave a successful login trapped behind the modal.
-    trackEvent('login').catch(function () {});
-    await resumePendingPoint();
-  });
-
-  document.getElementById('fcu-register-form').addEventListener('submit', async function (event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    const email = String(values.get('email') || '').trim();
-    const password = String(values.get('password') || '');
-
-    if (!isValidEmail(email)) {
-      return setMessage('Informe um e-mail válido (ex.: nome@gmail.com, @hotmail.com, @ibge.gov.br, @universidade.edu.br). Domínios inválidos não são aceitos.', true);
-    }
-    if (!password || password.length < 6) {
-      return setMessage('A senha deve ter no mínimo 6 caracteres.', true);
-    }
-
-    const termsAccepted = values.get('terms') === 'on';
-    const privacyAcknowledged = values.get('privacy') === 'on';
-    if (!termsAccepted || !privacyAcknowledged) {
-      return setMessage('Confirme os Termos de Uso e a Política de Privacidade para criar sua conta.', true);
-    }
-
-    setBusy(form, true);
-    setMessage('Criando sua conta e liberando acesso...');
-    const fullName = String(values.get('full_name') || '').trim();
-    const institution = String(values.get('institution') || '').trim();
-
-    let createdSuccess = false;
-    try {
-      const apiData = await postMaster('/register', {
-        email, password, full_name: fullName, institution,
-        terms_accepted: termsAccepted,
-        privacy_acknowledged: privacyAcknowledged,
-        terms_version: TERMS_VERSION
-      });
-      if (apiData.ok !== true) {
-        throw new Error('Não recebemos a confirmação do cadastro. Tente entrar ou fale com a equipe.');
-      }
-      createdSuccess = true;
-
-      const autoLogin = await client.auth.signInWithPassword({ email, password });
-      if (!autoLogin.error && autoLogin.data && autoLogin.data.session) {
-        updateUserUi(autoLogin.data.user);
-        const access = await verifyAccount(autoLogin.data.user);
-        if (access === false) return;
-        if (access !== true) throw new Error('Acesso ainda não confirmado.');
-        form.reset();
-        closeModal();
-        // First access after signup is a real login, just like the login form.
-        trackEvent('login').catch(function () {});
-        await resumePendingPoint();
-      } else {
-        form.reset();
-        setView('login');
-        document.getElementById('fcu-login-form').querySelector('[name="email"]').value = email;
-        setMessage('Sua conta foi criada, mas não conseguimos entrar automaticamente. Tente entrar com sua senha; se precisar, fale com a equipe.', true);
-      }
-    } catch (error) {
-      const detail = error.name === 'AbortError' || error instanceof TypeError || error instanceof SyntaxError
-        ? 'Não recebemos uma resposta do serviço. Tente entrar ou fale com a equipe antes de cadastrar novamente.'
-        : error.message;
-      setMessage(createdSuccess
-        ? 'Sua conta foi criada, mas o acesso automático falhou. Entre com sua senha ou fale com a equipe.'
-        : 'Não foi possível confirmar o cadastro: ' + detail, true);
-    } finally {
-      setBusy(form, false);
-    }
-  });
-
-  document.getElementById('fcu-reset-form').addEventListener('submit', async function (event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    const email = String(values.get('email') || '').trim();
-    const name = String(values.get('full_name') || '').trim();
-    const phone = String(values.get('phone') || '').trim();
-    if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return setMessage('Informe seu nome e o e-mail usado no cadastro.', true);
-    }
-    setBusy(form, true);
-    setMessage('Enviando pedido para a equipe...');
-    try {
-      await sendAccessRequest(form, { source: 'password_recovery', name, email, phone });
-      form.reset();
-      setMessage('Pedido recebido pela equipe. A recuperação é manual e exige confirmar sua identidade. Aguarde contato ou procure a equipe pelo canal habitual. Sua senha ainda não foi alterada.');
-    } catch (_) {
-      setMessage('Não foi possível enviar seu pedido. Os dados foram mantidos; tente novamente em alguns minutos ou procure a equipe pelo canal habitual.', true);
-    } finally {
-      setBusy(form, false);
-    }
-  });
-
-  document.getElementById('fcu-new-password-form').addEventListener('submit', async function (event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const password = String(new FormData(form).get('password') || '');
-    if (!password || password.length < 6) {
-      return setMessage('A nova senha deve ter no mínimo 6 caracteres.', true);
-    }
-    setBusy(form, true);
-    const result = await client.auth.updateUser({
-      password: password,
-      data: { must_change_password: false }
+  // All credentials and requests use the common audited access flow.
+  [['fcu-login-form','login'],['fcu-register-form','request'],['fcu-reset-form','recovery'],['fcu-new-password-form','password']].forEach(function ([id, view]) {
+    document.getElementById(id).addEventListener('submit', function (event) {
+      event.preventDefault();
+      goToAccess(view);
     });
-    setBusy(form, false);
-    if (result.error) {
-      let errMsg = result.error.message || '';
-      if (errMsg.includes('Password should be at least') || errMsg.includes('at least 6 characters')) {
-        errMsg = 'A senha deve ter no mínimo 6 caracteres.';
-      }
-      return setMessage('Não foi possível salvar a nova senha: ' + errMsg, true);
-    }
-    setMessage('✓ Nova senha alterada e salva com sucesso! Você já está conectado.');
-    window.history.replaceState({}, document.title, location.pathname);
-    window.setTimeout(function () { closeModal(); }, 1200);
   });
 
   const helpForm = document.getElementById('fcu-help-form');
@@ -664,11 +538,7 @@
       const user = event === 'SIGNED_OUT' ? null : session && session.user ? session.user : await validatedUser();
       updateUserUi(user);
       if (user && await verifyAccount(user) !== true) return;
-      if (user && user.user_metadata && user.user_metadata.must_change_password === true) {
-        const banner = document.getElementById('fcu-must-change-banner');
-        if (banner) banner.hidden = false;
-        openModal('new-password', '🔒 Sua senha é provisória ou de primeiro acesso. Defina sua nova senha pessoal.');
-      } else if (user && (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1')) {
+      if (user && (event === 'PASSWORD_RECOVERY' || new URLSearchParams(location.search).get('recovery') === '1')) {
         const banner = document.getElementById('fcu-must-change-banner');
         if (banner) banner.hidden = true;
         openModal('new-password', 'Crie uma nova senha para sua conta.');

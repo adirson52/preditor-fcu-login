@@ -7,13 +7,14 @@ const vm = require('node:vm');
 const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
 
 // Exercise the real form handlers without creating accounts or sending messages.
-function fixture({ responses = [], account = { account_status: 'active', session_valid: true }, login = { data: {}, error: { message: 'offline' } }, eventError = null, telemetryThrows = false, eventHook, signOutResponse = {} } = {}) {
+function fixture({ responses = [], account = { account_status: 'active', session_valid: true, access_ready: true, products: [{ id: 'login', allowed: true }] }, login = { data: {}, error: { message: 'offline' } }, eventError = null, telemetryThrows = false, eventHook, signOutResponse = {} } = {}) {
   const elements = new Map();
   const requests = [];
   const authCalls = [];
   const signouts = [];
   const events = [];
   const timers = [];
+  const redirects = []; let authListener, sdkUser = null;
   function element(id) {
     if (elements.has(id)) return elements.get(id);
     const classes = new Set();
@@ -34,8 +35,8 @@ function fixture({ responses = [], account = { account_status: 'active', session
   }
   const client = {
     auth: {
-      getUser: async () => ({ data: { user: null } }),
-      onAuthStateChange() {},
+      getUser: async () => ({ data: { user: sdkUser } }),
+      onAuthStateChange(listener) { authListener = listener; },
       signInWithPassword: async payload => { authCalls.push(payload); return login; },
       signOut: async options => { signouts.push(options); if (signOutResponse instanceof Error) throw signOutResponse; return typeof signOutResponse === 'function' ? signOutResponse() : signOutResponse; },
       signUp: async () => { throw new Error('Direct signUp fallback must not run'); },
@@ -46,7 +47,7 @@ function fixture({ responses = [], account = { account_status: 'active', session
       assert.equal(table, 'fcu_authenticated_events');
       return { insert: async event => { events.push(event); return eventHook ? eventHook(event) : { error: eventError }; } };
     },
-    rpc: async name => { assert.equal(name, 'fcu_my_account_status'); return account instanceof Error ? { error: account } : { data: account }; }
+    rpc: async name => { assert.equal(name, 'fcu_my_products'); return account instanceof Error ? { error: account } : { data: account }; }
   };
   const window = {
     supabase: { createClient: () => client },
@@ -56,8 +57,8 @@ function fixture({ responses = [], account = { account_status: 'active', session
     history: { replaceState() {} }
   };
   const context = vm.createContext({
-    window, console, AbortController, URLSearchParams,
-    location: { origin: 'https://preditor-fcu-login.vercel.app', pathname: '/', search: '' },
+    window, console, AbortController, URL, URLSearchParams,
+    location: { origin: 'https://preditor-fcu-login.vercel.app', pathname: '/', search: '', hash: '', assign: url => redirects.push(url) },
     localStorage: { getItem: () => '', setItem() {} },
     crypto: { randomUUID: () => '75d39b2b-9407-488f-b8fd-111111111111' },
     FormData: class { constructor(form) { this.values = form.values; } get(key) { return this.values[key]; } },
@@ -74,7 +75,12 @@ function fixture({ responses = [], account = { account_status: 'active', session
   });
   vm.runInContext(code, context);
   return {
-    element, requests, authCalls, signouts, events, timers, window,
+    element, requests, authCalls, signouts, events, timers, window, redirects,
+    async authenticate(user = login.data?.user) {
+      await Promise.resolve(); await Promise.resolve();
+      sdkUser = user; authListener('SIGNED_IN', { user });
+      await timers.at(-1).fn();
+    },
     async submit(id, values) {
       const form = element(id);
       form.values = values;
@@ -87,131 +93,76 @@ function fixture({ responses = [], account = { account_status: 'active', session
 const contact = { full_name: 'Pessoa Teste', email: 'pessoa@example.org', phone: '(11) 00000-0000' };
 const signup = { ...contact, institution: 'Instituição', password: '123456', terms: 'on', privacy: 'on' };
 
-test('forgot password creates only a manual recovery request, with no password or SMTP', async () => {
-  const app = fixture();
-  const result = await app.submit('fcu-reset-form', contact);
-  assert.equal(result.error, false);
-  assert.match(result.text, /recuperação é manual/);
-  assert.equal(app.requests.length, 1);
-  assert.match(app.requests[0].url, /\/api\/feedback$/);
-  assert.equal(app.requests[0].body.source, 'password_recovery');
-  assert.equal(app.requests[0].body.email, contact.email);
-  assert.equal(Object.hasOwn(app.requests[0].body, 'password'), false);
-  assert.equal(app.authCalls.length, 0);
-  assert.equal(result.form.resetCalled, true);
+test('every legacy credential form redirects to the single access screen without sending credentials', async () => {
+  for (const [id, view] of [['fcu-login-form','login'],['fcu-register-form','request'],['fcu-reset-form','recovery'],['fcu-new-password-form','password']]) {
+    const app = fixture();
+    await app.submit(id, signup);
+    const target = new URL(app.redirects.at(-1));
+    assert.equal(target.origin, 'https://preditor-fcu-login.vercel.app');
+    assert.equal(target.pathname, '/acesso');
+    assert.equal(target.searchParams.get('view'), view);
+    assert.equal(target.searchParams.get('next'), '/');
+    assert.equal(app.requests.length, 0);
+    assert.equal(app.authCalls.length, 0);
+    assert.equal(target.searchParams.has('email'), false);
+    assert.equal(target.searchParams.has('password'), false);
+  }
 });
 
-test('failed request retains details and retries with the same submission ID', async () => {
-  const app = fixture({ responses: [{ ok: false, body: { error: 'unavailable' } }, { body: { accepted: true } }] });
-  const first = await app.submit('fcu-reset-form', contact);
-  assert.equal(first.error, true);
-  assert.equal(first.form.resetCalled, undefined);
-  assert.match(first.text, /Não foi possível enviar/);
-  const second = await app.submit('fcu-reset-form', contact);
+test('general access help uses the receipt API and retains failed details for an idempotent retry', async () => {
+  const app = fixture({ responses: [{ ok: false, body: { error: 'Unavailable' } }, { body: { accepted: true } }] });
+  const values = { ...contact, message_text: 'Preciso de ajuda' };
+  const first = await app.submit('fcu-help-form', values);
+  assert.equal(first.error, true); assert.equal(first.form.resetCalled, undefined);
+  const second = await app.submit('fcu-help-form', values);
   assert.equal(second.error, false);
+  assert.equal(app.requests[0].body.source, 'access_help');
   assert.equal(app.requests[0].body.submission_id, app.requests[1].body.submission_id);
+  assert.equal(Object.hasOwn(app.requests[0].body, 'password'), false);
 });
 
 test('HTTP 200 without accepted true is not shown as successful receipt', async () => {
   const app = fixture({ responses: [{ body: { accepted: false } }] });
-  const result = await app.submit('fcu-reset-form', contact);
-  assert.equal(result.error, true);
-  assert.equal(result.form.resetCalled, undefined);
-});
-
-test('general access help uses the protected receipt API and reports failures', async () => {
-  const app = fixture({ responses: [{ ok: false, body: { error: 'Too many requests' } }] });
   const result = await app.submit('fcu-help-form', { ...contact, message_text: 'Preciso de ajuda' });
-  assert.equal(app.requests[0].body.source, 'access_help');
-  assert.equal(result.error, true);
-  assert.equal(result.form.resetCalled, undefined);
-});
-
-test('registration requires explicit consents before contacting the API', async () => {
-  const app = fixture();
-  const result = await app.submit('fcu-register-form', { ...signup, terms: undefined });
-  assert.equal(result.error, true);
-  assert.equal(app.requests.length, 0);
-});
-
-test('registration API failure does not bypass the server or report success', async () => {
-  const app = fixture({ responses: [{ ok: false, body: { error: 'Cadastro fechado.' } }] });
-  const result = await app.submit('fcu-register-form', signup);
-  assert.equal(result.error, true);
-  assert.match(result.text, /Cadastro fechado/);
-  assert.equal(app.authCalls.length, 0);
-  assert.equal(app.requests[0].body.terms_accepted, true);
-  assert.equal(app.requests[0].body.privacy_acknowledged, true);
-  assert.equal(app.requests[0].body.terms_version, 'pilot-2026-09-11');
-});
-
-test('confirmed account creation with failed auto-login gives accurate next step', async () => {
-  const app = fixture({ responses: [{ body: { ok: true } }] });
-  const result = await app.submit('fcu-register-form', signup);
-  assert.match(result.text, /conta foi criada.*não conseguimos entrar automaticamente/);
-  assert.equal(result.error, true);
-  assert.equal(app.authCalls.length, 1);
-});
-
-test('confirmed account and session close the modal and clear the password form', async () => {
-  const app = fixture({ responses: [{ body: { ok: true } }], login: { data: { session: {}, user: { id: 'user-id', email: contact.email } } } });
-  const result = await app.submit('fcu-register-form', signup);
-  assert.equal(app.window.PreditorAuth.user.email, contact.email);
-  assert.equal(result.form.resetCalled, true);
-  assert.equal(result.text, '');
-  assert.equal(app.events.length, 1);
-  assert.equal(app.events[0].user_id, 'user-id');
-  assert.equal(app.events[0].event_name, 'login');
-});
-
-test('signup first access records authenticated login even when optional analytics fails', async () => {
-  const app = fixture({ responses: [{ body: { ok: true } }], telemetryThrows: true,
-    login: { data: { session: {}, user: { id: 'new-user', email: contact.email } } } });
-  const result = await app.submit('fcu-register-form', signup);
-  assert.equal(result.error, false);
-  assert.equal(app.events.length, 1);
-  assert.equal(app.events[0].user_id, 'new-user');
-  assert.equal(app.events[0].event_name, 'login');
-  assert.equal(result.form.resetCalled, true);
-});
-
-test('failed activity recording does not lock a successfully created account in the form', async () => {
-  const app = fixture({ responses: [{ body: { ok: true } }], eventError: { message: 'unavailable' },
-    login: { data: { session: {}, user: { id: 'new-user', email: contact.email } } } });
-  const result = await app.submit('fcu-register-form', signup);
-  assert.equal(app.window.PreditorAuth.user.id, 'new-user');
-  assert.equal(result.form.resetCalled, true);
-  assert.equal(result.error, false);
+  assert.equal(result.error, true); assert.equal(result.form.resetCalled, undefined);
 });
 
 test('suspended or deleted accounts close only the local session and preserve drafts', async () => {
   for (const account_status of ['suspended', 'deleted']) {
-    const app = fixture({ account: { account_status, session_valid: false }, login: { data: { user: { id: 'qa', email: contact.email } } } });
-    const result = await app.submit('fcu-login-form', signup);
+    const app = fixture({ account: { account_status, session_valid: false } });
+    await app.authenticate({ id: 'qa', email: contact.email });
     assert.equal(app.window.PreditorAuth.user, null);
-    assert.equal(app.signouts.length, 1);
-    assert.equal(app.signouts[0].scope, 'local');
-    assert.equal(result.error, true);
-    assert.match(result.text, /preservad/);
+    assert.equal(app.signouts.length, 1); assert.equal(app.signouts[0].scope, 'local');
+    assert.match(app.element('fcu-auth-message').textContent, /preservad/);
     assert.equal(app.events.length, 0);
   }
 });
 
-test('unavailable account-status service does not report login success or erase session', async () => {
-  const app = fixture({ account: new Error('network'), login: { data: { user: { id: 'qa', email: contact.email } } } });
-  const result = await app.submit('fcu-login-form', signup);
-  assert.equal(app.signouts.length, 0);
-  assert.equal(app.window.PreditorAuth.user.id, 'qa');
-  assert.equal(result.error, true);
-  assert.match(result.text, /não foi possível confirmar o acesso/);
-  assert.equal(app.events.length, 0);
+test('unavailable permission service does not erase the identity or pending drafts', async () => {
+  const app = fixture({ account: new Error('network') });
+  await app.authenticate({ id: 'qa', email: contact.email });
+  assert.equal(app.signouts.length, 0); assert.equal(app.window.PreditorAuth.user.id, 'qa');
+  assert.equal(await app.window.PreditorAuth.verifyAccount(), null);
+  assert.equal(app.redirects.length, 0);
+});
+
+test('trusted forced-password and pending states redirect without trusting editable metadata', async () => {
+  for (const account of [
+    { account_status: 'pending', session_valid: true, access_ready: false, products: [] },
+    { account_status: 'active', session_valid: true, password_change_required: true, products: [{id:'login',allowed:true}] }
+  ]) {
+    const app = fixture({ account });
+    await app.authenticate({ id: 'qa', email: contact.email, user_metadata: { must_change_password: false } });
+    assert.equal(app.signouts.length, 0);
+    assert.equal(new URL(app.redirects.at(-1)).searchParams.get('view'), account.password_change_required ? 'password' : 'account');
+  }
 });
 
 test('revoked session asks for new login without using metadata as authorization', async () => {
-  const app = fixture({ account: { account_status: 'active', session_valid: false }, login: { data: { user: { id: 'qa', email: contact.email, user_metadata: { account_status: 'active' } } } } });
-  const result = await app.submit('fcu-login-form', signup);
+  const app = fixture({ account: { account_status: 'active', session_valid: false } });
+  await app.authenticate({ id: 'qa', email: contact.email, user_metadata: { account_status: 'active' } });
   assert.equal(app.window.PreditorAuth.user, null);
-  assert.match(result.text, /Entre novamente/);
+  assert.match(app.element('fcu-auth-message').textContent, /Entre novamente/);
 });
 
 const loggedIn = (extra = {}) => fixture({ login: { data: { session: {}, user: { id: 'owner-a', email: contact.email } } }, ...extra });
@@ -222,7 +173,7 @@ test('both logout paths share a local-session helper and record the activity bef
     assert.equal(app.events.at(-1).user_id, 'owner-a');
     return { error: null };
   } });
-  await app.submit('fcu-login-form', signup);
+  await app.authenticate();
   assert.equal(typeof app.window.PreditorAuth.signOutLocal, 'function');
   await app.element('fcu-logout-button').handlers.click();
   assert.equal(app.signouts.length, 1);
@@ -238,7 +189,7 @@ test('both logout paths share a local-session helper and record the activity bef
 
 test('failed optional analytics and authenticated-event recording do not block local logout', async () => {
   const app = loggedIn({ telemetryThrows: true, eventError: { message: 'Unavailable' } });
-  await app.submit('fcu-login-form', signup);
+  await app.authenticate();
   assert.equal((await app.window.PreditorAuth.signOutLocal()).ok, true);
   assert.equal(app.signouts[0].scope, 'local');
   assert.equal(app.events.at(-1).event_name, 'logout');
@@ -247,7 +198,7 @@ test('failed optional analytics and authenticated-event recording do not block l
 
 test('stalled analytics is bounded and its eventual failure cannot block logout', async () => {
   const app = loggedIn({ eventHook: event => event.event_name === 'logout' ? new Promise(() => {}) : { error: null } });
-  await app.submit('fcu-login-form', signup);
+  await app.authenticate();
   const pending = app.window.PreditorAuth.signOutLocal();
   assert.equal(app.signouts.length, 0);
   const timeout = app.timers.find(timer => timer.ms === 3000 && timer.active);
@@ -259,7 +210,7 @@ test('stalled analytics is bounded and its eventual failure cannot block logout'
 
 test('returned or thrown logout error leaves the authenticated user and visible error intact', async () => {
   for (const signOutResponse of [{ error: { message: 'network' } }, new Error('network')]) {
-    const app = loggedIn({ signOutResponse }); await app.submit('fcu-login-form', signup);
+    const app = loggedIn({ signOutResponse }); await app.authenticate();
     await app.element('fcu-logout-button').handlers.click();
     assert.equal(app.window.PreditorAuth.user.id, 'owner-a');
     assert.match(app.element('fcu-auth-message').textContent, /Não foi possível sair/);
@@ -273,10 +224,10 @@ test('owner change while recording logout never signs out the new account', asyn
   let release;
   const login = { data: { session: {}, user: { id: 'owner-a', email: contact.email } } };
   const app = loggedIn({ login, eventHook: event => event.event_name === 'logout' ? new Promise(resolve => { release = () => resolve({ error: null }); }) : { error: null } });
-  await app.submit('fcu-login-form', signup);
+  await app.authenticate();
   const pending = app.window.PreditorAuth.signOutLocal();
   login.data.user = { id: 'owner-b', email: 'other@example.test' };
-  await app.submit('fcu-login-form', { ...signup, email: 'other@example.test' });
+  await app.authenticate(login.data.user);
   release();
   assert.equal((await pending).reason, 'account-changed');
   assert.equal(app.signouts.length, 0);

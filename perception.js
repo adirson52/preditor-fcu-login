@@ -2008,13 +2008,9 @@
           <div class="fcu-account-card-head">
             <h3 class="fcu-account-card-title">🔒 Alterar Senha de Acesso</h3>
           </div>
-          <p class="fcu-account-card-desc">Atualize sua senha de acesso a qualquer momento. A nova senha deve ter no mínimo 6 dígitos.</p>
+          <p class="fcu-account-card-desc">Altere sua senha na página de acesso. A nova senha será válida para todos os produtos e não será exibida à equipe.</p>
           <form id="fcu-pwd-form">
-            <div class="fcu-acc-field">
-              <label for="fcu-new-pwd-input">Nova senha de acesso (mínimo 6 dígitos)</label>
-              <input id="fcu-new-pwd-input" type="password" name="new_pwd" minlength="6" required placeholder="Preencha sua nova senha (mínimo 6 dígitos)">
-            </div>
-            <button class="fcu-acc-submit-btn" type="submit">Atualizar minha senha</button>
+            <button class="fcu-acc-submit-btn" type="submit">Alterar minha senha</button>
             <p id="fcu-pwd-status" class="fcu-perception-status" style="margin-top:10px;"></p>
           </form>
         </div>
@@ -2069,22 +2065,12 @@
       $('#fcu-profile-logout').onclick = logoutProfile;
     }
 
-    $('#fcu-pwd-form').onsubmit = async e => {
+    $('#fcu-pwd-form').onsubmit = e => {
       e.preventDefault();
-      const p = e.target.elements.new_pwd.value.trim();
-      if(!p || p.length < 6) return status('A senha precisa ter 6 dígitos ou mais.', true, '#fcu-pwd-status');
-      status('Atualizando senha...', false, '#fcu-pwd-status');
-      const res = await db.auth.updateUser({ password: p, data: { must_change_password: false } });
-      if(res.error) {
-        let errMsg = res.error.message || '';
-        if (errMsg.includes('Password should be at least') || errMsg.includes('at least 6 characters')) {
-          errMsg = 'A senha deve ter no mínimo 6 dígitos.';
-        }
-        return status('Não foi possível alterar a senha: ' + errMsg, true, '#fcu-pwd-status');
-      }
-      window.PreditorTelemetry?.track('profile_password_update');
-      status('✓ Senha alterada com sucesso!', false, '#fcu-pwd-status');
-      e.target.reset();
+      const target = new URL('/acesso', location.origin);
+      target.searchParams.set('view', 'password');
+      target.searchParams.set('next', location.pathname + location.search + location.hash);
+      location.assign(target.href);
     };
 
     $('#fcu-do-export-qgis').onclick = () => {

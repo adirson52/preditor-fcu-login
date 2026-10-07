@@ -4,19 +4,13 @@
  if(!cfg)return;
  const client=window.PreditorAuth?.client || (cfg.standalone && window.supabase?.createClient('https://rreagceersvnbmmvstzf.supabase.co','sb_publishable_RDHoY0_ixV4SxEvCUwwnhQ_bqyXjUPf',{auth:{storageKey:cfg.storageKey,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}));
  if(!client)return;
- window.FCUAccessClient=client;
- if(cfg.standalone&&!document.querySelector('a[href="/acesso"]')){
-  const link=document.createElement('a');link.href='/acesso';link.textContent='Minha conta · Trocar produto';
-  link.style.cssText='position:fixed;bottom:8px;right:12px;z-index:999;background:white;border:1px solid #ccd9df;border-radius:8px;padding:8px 12px;color:#10465b;font:13px sans-serif';
-  document.body.append(link);
- }
  let syncing=false;
  async function sync(){
   if(syncing||navigator.onLine===false)return;syncing=true;
   try{
    const session=(await client.auth.getSession()).data.session;
-   if(!session){await fetch(cfg.sessionEndpoint||'/api/access-session',{method:'DELETE'});location.assign('/acesso?next='+encodeURIComponent(location.pathname+location.search));return;}
-   const r=await fetch(cfg.sessionEndpoint||'/api/access-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:session.access_token})});
+   if(!session){await fetch('/api/access-session',{method:'DELETE'});location.assign('/acesso?next='+encodeURIComponent(location.pathname+location.search));return;}
+   const r=await fetch('/api/access-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:session.access_token})});
    if(r.status===401||r.status===403)location.assign('/acesso?next='+encodeURIComponent(location.pathname+location.search));
   }catch{}finally{syncing=false;}
  }
