@@ -332,8 +332,8 @@
   async function trackEvent(eventName, point) {
     if (!currentUser) return false;
     const owner = currentUser.id;
-    // Optional page analytics must not prevent the authenticated activity record.
-    try { window.PreditorTelemetry?.track('auth_' + eventName, {}, {cellId: point?.id, area: point?.a || point?.scope}); } catch (_) {}
+    // Account security events have their own authenticated audit record.
+    // Do not mirror them into optional navigation analytics and count twice.
     const areaId = point && (point.a || point.scope) ? String(point.a || point.scope) : null;
     const cellId = point && point.id ? String(point.id) : null;
     let sessionId = safeStorageGet(SESSION_KEY);

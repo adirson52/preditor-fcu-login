@@ -1,10 +1,10 @@
 (function () {
   'use strict';
 
-  const PRODUCTION_HOSTS = ['preditor-fcu-v2.vercel.app', 'preditor-fcu-login.vercel.app'];
+  const PRODUCTION_HOSTS = ['preditor-fcu-login.vercel.app'];
   const ENDPOINT = 'https://preditor-fcu-master.vercel.app/api/collect';
-  const TELEMETRY_VERSION = '2026-09-10.7';
-  const PREVIOUS_COMPATIBLE_VERSION = '2026-09-10.6';
+  const TELEMETRY_VERSION = '2026-10-18.1';
+  const PREVIOUS_COMPATIBLE_VERSION = '2026-10-18.1';
   const VISITOR_KEY = 'preditor_visitor_id_v1';
   const SESSION_KEY = 'preditor_session_id_v1';
   const SESSION_SENT_KEY = 'preditor_session_started_v1';
@@ -42,6 +42,7 @@
 
   const localStore = resolveStorage('localStorage');
   const sessionStore = resolveStorage('sessionStorage');
+  let delivery = null, standaloneClient = null, entryOwner = '';
   const runtimePreferences = Object.create(null);
   let runtimeOptOut = false;
   let locationAttemptedInMemory = false;
@@ -233,16 +234,6 @@
 
   function payload(eventName, properties, options) {
     const settings = options || {};
-    const authUser = (window.PreditorAuth && window.PreditorAuth.user) || null;
-    const userMeta = (authUser && authUser.user_metadata) || {};
-    const userEmail = authUser && authUser.email ? String(authUser.email).slice(0, 160) : null;
-    const userName = authUser && (userMeta.full_name || userMeta.name) ? String(userMeta.full_name || userMeta.name).slice(0, 160) : null;
-    const institution = authUser && userMeta.institution ? String(userMeta.institution).slice(0, 160) : null;
-
-    const userProps = {};
-    if (userEmail) userProps.user_email = userEmail;
-    if (userName) userProps.user_name = userName;
-    if (institution) userProps.institution = institution;
 
     return {
       event_id: identifier('event'),
@@ -254,17 +245,13 @@
       page_type: pageType(),
       area_slug: String(settings.area || currentArea() || '').slice(0, 160),
       cell_id: String(settings.cellId || '').slice(0, 160),
-      user_id: authUser && authUser.id ? String(authUser.id).slice(0, 80) : null,
-      user_email: userEmail,
-      user_name: userName,
-      institution: institution,
+      user_id: delivery?.userId() || null,
       language: String(navigator.language || '').slice(0, 40),
       timezone: String(Intl.DateTimeFormat().resolvedOptions().timeZone || '').slice(0, 80),
       screen_width: Number(window.screen && window.screen.width) || 0,
       screen_height: Number(window.screen && window.screen.height) || 0,
       active_seconds: Math.max(0, Math.min(60, Number(settings.activeSeconds) || 0)),
-      properties: Object.assign({}, properties || {}, userProps, { telemetry_version: TELEMETRY_VERSION }),
-      test_token: testToken
+      properties: Object.assign({}, properties || {}, { telemetry_version: TELEMETRY_VERSION })
     };
   }
 
@@ -286,26 +273,13 @@
   }
 
   function collectionDisabled() {
-    if(window.FCUAccessConfig){try{if(JSON.parse(localStorage.getItem('fcu_privacy_v1')||'null')?.choice!=='analytics')return true;}catch(_){return true;}}
+    try{if(JSON.parse(storageGet(localStore,'fcu_privacy_v1')||'null')?.choice!=='analytics')return true;}catch(_){return true;}
     return runtimeOptOut || preferenceGet(OPTOUT_KEY) === '1' || privacySignalEnabled();
   }
 
   function deliver(eventName, properties, settings) {
-    if (collectionDisabled()) return false;
-    const body = JSON.stringify(payload(eventName, properties, settings));
-    if (settings.beacon && navigator.sendBeacon) {
-      const queued = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
-      if (queued) return true;
-    }
-    fetch(ENDPOINT, {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'omit',
-      keepalive: true,
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: body
-    }).then(handleCollectorResponse).catch(function () {});
-    return true;
+    if (collectionDisabled() || !delivery?.userId()) return false;
+    return delivery.enqueue(payload(eventName, properties, settings));
   }
 
   function locationState(storageKey) {
@@ -489,7 +463,7 @@
   }
 
   function scheduleLocationFlow() {
-    window.setTimeout(startLocationFlow, 250);
+    if (delivery?.userId()) window.setTimeout(startLocationFlow, 250);
   }
 
   function rotateSession(reason) {
@@ -520,7 +494,7 @@
   }
 
   function send(eventName, properties, options) {
-    if (collectionDisabled()) return false;
+    if (collectionDisabled() || !delivery?.userId()) return false;
     ensureFreshSession();
     noteSessionActivity(false);
     return deliver(eventName, properties, options || {});
@@ -850,11 +824,45 @@
     }
   });
 
-  if (!storageGet(sessionStore, SESSION_SENT_KEY)) {
-    storageSet(sessionStore, SESSION_SENT_KEY, '1');
-    send('session_start', { entry: pageType() });
+  function identityReady(owner) {
+    if (!owner) { entryOwner = ''; removeLocationBanner(); return; }
+    if (storageGet(sessionStore,'preditor_usage_owner_v2') !== owner) {
+      resetSession();
+      sessionId = storedId(sessionStore,SESSION_KEY,'session');
+      storageSet(sessionStore,'preditor_usage_owner_v2',owner);
+      selectedAreas.clear();
+    }
+    storageSet(sessionStore, SESSION_VERSION_KEY, TELEMETRY_VERSION);
+    if (collectionDisabled() || entryOwner === owner) return;
+    entryOwner = owner;
+    if (!storageGet(sessionStore, SESSION_SENT_KEY)) {
+      storageSet(sessionStore, SESSION_SENT_KEY, '1');
+      send('session_start', { entry: pageType() });
+    }
+    send('page_view', { title: String(document.title || '').slice(0,140) }, { cellId: currentCell() });
+    scheduleLocationFlow();
   }
-  send('page_view', { title: String(document.title || '').slice(0, 140) }, { cellId: currentCell() });
+
+  function startDelivery() {
+    if (delivery || !window.createPreditorDelivery) return;
+    delivery = window.createPreditorDelivery({
+      endpoint:ENDPOINT,storage:localStore,fetch:window.fetch.bind(window),
+      online:() => navigator.onLine !== false,enabled:() => !collectionDisabled(),
+      getClient:() => {
+        if (window.PreditorAuth?.client) return window.PreditorAuth.client;
+        if (!standaloneClient && window.supabase?.createClient) {
+          standaloneClient = window.supabase.createClient('https://rreagceersvnbmmvstzf.supabase.co','sb_publishable_RDHoY0_ixV4SxEvCUwwnhQ_bqyXjUPf',
+            {auth:{storageKey:'sb-rreagceersvnbmmvstzf-auth-token',persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+        }
+        return standaloneClient;
+      },onIdentity:owner => window.setTimeout(() => identityReady(owner),0)
+    });
+    const tick = async () => { await delivery.check(); identityReady(delivery.userId()); await delivery.flush(); };
+    tick(); window.setInterval(tick,10000);
+    window.addEventListener('online',tick);window.addEventListener('focus',tick);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startDelivery,{once:true});
+  else startDelivery();
 
   window.PreditorTelemetry = Object.freeze({
     track: send,
@@ -862,14 +870,19 @@
     measurementEnabled: function () { return !collectionDisabled(); },
     setMeasurementEnabled: function (enabled) {
       runtimeOptOut = !enabled;
+      entryOwner = '';
       if (enabled) {
         preferenceRemove(OPTOUT_KEY);
       } else {
+        delivery?.clear();
+        entryOwner = '';
         preferenceSet(OPTOUT_KEY, '1');
         preferenceRemove(LOCATION_PREFERENCE_KEY);
         removeLocationBanner();
       }
       resetSession();
+      sessionId = storedId(sessionStore,SESSION_KEY,'session');
+      if (enabled) identityReady(delivery?.userId());
       notifyLocationStatus(enabled ? 'measurement_enabled' : 'measurement_disabled');
       return Boolean(enabled);
     },
